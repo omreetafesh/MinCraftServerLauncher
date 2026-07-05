@@ -59,19 +59,19 @@ Filename: "{app}\Minecraft Server Launcher.exe"; Description: "Launch Minecraft 
 [Code]
 
 // --------------------------------------------------------------------------
-// Palette  (Windows BGR format: $BBGGRR = #RRGGBB reversed)
+// Palette  (Windows BGR format: $BBGGRR — bytes of #RRGGBB reversed)
 const
-  BG      = $0D1A0D;  // outer window bg
-  CARD    = $141414;  // inner page bg
-  SEP     = $282828;  // row separator line
+  BG      = $0D1A0D;  // outer bg — dark green
+  CARD    = $1A1A1A;  // inner page bg
+  SEP     = $333333;  // separator line
   WHITE   = $FFFFFF;
-  TEXT    = $E0E0E0;
-  SUB     = $888888;  // subtitle / muted text
-  DIM     = $404040;  // very muted (section labels)
-  TRK_OFF = $363636;  // toggle track  - off
-  THB_OFF = $666666;  // toggle thumb  - off
-  TRK_ON  = $1A6600;  // toggle track  - on  (muted green)
-  THB_ON  = $FFFFFF;  // toggle thumb  - on
+  TEXT    = $F2F2F2;  // primary text
+  SUB     = $999999;  // secondary / subtitle text
+  DIM     = $555555;  // muted label
+  TRK_OFF = $484848;  // toggle track  off-state
+  THB_OFF = $888888;  // toggle thumb  off-state
+  TRK_ON  = $2A8800;  // toggle track  on-state  (medium green)
+  THB_ON  = $FFFFFF;  // toggle thumb  on-state
 
 // --------------------------------------------------------------------------
 // Global state
@@ -85,24 +85,28 @@ var
   StartOn:    Boolean;
 
 // --------------------------------------------------------------------------
-// Put a label with explicit background colour
+// Helpers — X/Y/W always in unscaled units; ScaleX/Y applied inside.
+// Do NOT pass SurfaceWidth here — it is already in screen pixels.
+
 procedure PutLbl(Parent: TWinControl; X, Y, W, FSz, FClr: Integer;
                  const S, FName: String);
 var L: TNewStaticText;
 begin
   L := TNewStaticText.Create(WizardForm);
-  L.Parent     := Parent;
-  L.Left       := ScaleX(X);   L.Top   := ScaleY(Y);
-  L.Width      := ScaleX(W);
-  L.Caption    := S;
-  L.Font.Name  := FName;
-  L.Font.Size  := FSz;
-  L.Font.Color := FClr;
-  L.Color      := CARD;
+  L.Parent      := Parent;
+  L.Left        := ScaleX(X);
+  L.Top         := ScaleY(Y);
+  L.Width       := ScaleX(W);
+  L.AutoSize    := False;
+  L.Caption     := S;
+  L.Font.Name   := FName;
+  L.Font.Size   := FSz;
+  L.Font.Color  := FClr;
+  L.Color       := CARD;
   L.ParentColor := False;
 end;
 
-// 1-pixel horizontal separator line
+// Full-width 1-px separator; Y is unscaled
 procedure PutSep(Parent: TWinControl; Y: Integer);
 var P: TPanel;
 begin
@@ -110,13 +114,13 @@ begin
   P.Parent     := Parent;
   P.Left       := 0;
   P.Top        := ScaleY(Y);
-  P.Width      := Parent.ClientWidth;
+  P.Width      := Parent.ClientWidth;  // already in screen pixels — correct
   P.Height     := 1;
   P.Color      := SEP;
   P.BevelOuter := bvNone;
 end;
 
-// Build a toggle switch; returns track, writes thumb into ThumbOut
+// Toggle switch; X/Y unscaled
 function MakeToggle(Parent: TWinControl; X, Y: Integer;
                     var ThumbOut: TPanel): TPanel;
 var Track, Thumb: TPanel;
@@ -125,15 +129,15 @@ begin
   Track.Parent     := Parent;
   Track.Left       := ScaleX(X);
   Track.Top        := ScaleY(Y);
-  Track.Width      := ScaleX(44);
-  Track.Height     := ScaleY(22);
+  Track.Width      := ScaleX(46);
+  Track.Height     := ScaleY(24);
   Track.Color      := TRK_OFF;
   Track.BevelOuter := bvNone;
 
   Thumb := TPanel.Create(WizardForm);
   Thumb.Parent     := Track;
   Thumb.Left       := ScaleX(3);
-  Thumb.Top        := ScaleY(3);
+  Thumb.Top        := ScaleY(4);
   Thumb.Width      := ScaleX(16);
   Thumb.Height     := ScaleY(16);
   Thumb.Color      := THB_OFF;
@@ -150,7 +154,7 @@ procedure ToggleDesk(Sender: TObject);
 begin
   DeskOn := not DeskOn;
   if DeskOn then begin
-    DeskThumb.Left  := ScaleX(25);
+    DeskThumb.Left  := ScaleX(27);
     DeskThumb.Color := THB_ON;
     DeskTrack.Color := TRK_ON;
   end else begin
@@ -164,7 +168,7 @@ procedure ToggleStart(Sender: TObject);
 begin
   StartOn := not StartOn;
   if StartOn then begin
-    StartThumb.Left  := ScaleX(25);
+    StartThumb.Left  := ScaleX(27);
     StartThumb.Color := THB_ON;
     StartTrack.Color := TRK_ON;
   end else begin
@@ -175,41 +179,40 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Build the custom Configure page
+// Custom Configure page
+// Layout: toggle on the LEFT (X=0), labels to the RIGHT (X=54).
+// All values are unscaled units — ScaleX/Y are applied inside helpers.
+// Never use SurfaceWidth as an argument to PutLbl/MakeToggle.
 
 procedure BuildConfigPage;
-var
-  Surf: TWinControl;
-  SW:   Integer;
+var Surf: TWinControl;
 begin
   ConfigPage := CreateCustomPage(wpWelcome,
     'Configure Installation',
     'Customize your setup before we begin');
-
   Surf := ConfigPage.Surface;
-  SW   := ConfigPage.SurfaceWidth;
 
-  // Row 1 -- Desktop shortcut
-  PutLbl(Surf,  0, 12, SW-62, 10, TEXT,  'Create a desktop shortcut', 'Segoe UI Semibold');
-  PutLbl(Surf,  0, 30, SW-62,  9, SUB,   'Adds a quick-access icon to your Desktop', 'Segoe UI');
-  DeskTrack := MakeToggle(Surf, SW-52, 13, DeskThumb);
+  // Row 1 — Desktop shortcut
+  DeskTrack := MakeToggle(Surf, 0, 12, DeskThumb);
   DeskTrack.OnClick := @ToggleDesk;
   DeskThumb.OnClick := @ToggleDesk;
+  PutLbl(Surf, 56, 13, 255, 10, TEXT, 'Create a desktop shortcut', 'Segoe UI Semibold');
+  PutLbl(Surf, 56, 31, 255,  9, SUB,  'Adds a quick-access icon to your Desktop', 'Segoe UI');
 
-  PutSep(Surf, 56);
+  PutSep(Surf, 58);
 
-  // Row 2 -- Launch on startup
-  PutLbl(Surf,  0, 66, SW-62, 10, TEXT,  'Launch on Windows startup', 'Segoe UI Semibold');
-  PutLbl(Surf,  0, 84, SW-62,  9, SUB,   'Open the launcher automatically when Windows starts', 'Segoe UI');
-  StartTrack := MakeToggle(Surf, SW-52, 67, StartThumb);
+  // Row 2 — Launch on startup
+  StartTrack := MakeToggle(Surf, 0, 68, StartThumb);
   StartTrack.OnClick := @ToggleStart;
   StartThumb.OnClick := @ToggleStart;
+  PutLbl(Surf, 56, 69, 255, 10, TEXT, 'Launch on Windows startup', 'Segoe UI Semibold');
+  PutLbl(Surf, 56, 87, 255,  9, SUB,  'Open the launcher automatically when Windows starts', 'Segoe UI');
 
-  PutSep(Surf, 110);
+  PutSep(Surf, 114);
 
-  // Install location (read-only info)
-  PutLbl(Surf, 0, 118, SW,  8, DIM,  'INSTALLS TO', 'Segoe UI');
-  PutLbl(Surf, 0, 132, SW,  9, SUB,
+  // Install location (read-only, informational)
+  PutLbl(Surf, 0, 124, 310,  8, DIM,  'INSTALLS TO', 'Segoe UI');
+  PutLbl(Surf, 0, 138, 310,  9, SUB,
          ExpandConstant('{localappdata}\Programs\Minecraft Server Launcher'),
          'Consolas');
 end;
@@ -225,30 +228,31 @@ begin
   WizardForm.Bevel1.Visible  := False;
   WizardForm.InnerPage.Color := CARD;
 
-  // Header labels (inner pages)
+  // Inner page header
   WizardForm.PageNameLabel.Font.Color        := WHITE;
   WizardForm.PageNameLabel.Font.Name         := 'Segoe UI Semibold';
   WizardForm.PageNameLabel.Font.Size         := 14;
-  WizardForm.PageDescriptionLabel.Font.Color := DIM;
+  WizardForm.PageDescriptionLabel.Font.Color := SUB;
   WizardForm.PageDescriptionLabel.Font.Name  := 'Segoe UI';
+  WizardForm.PageDescriptionLabel.Font.Size  := 9;
 
-  // Welcome page right-panel text
+  // Welcome page — right panel
   WizardForm.WelcomeLabel1.Font.Color := WHITE;
   WizardForm.WelcomeLabel1.Font.Name  := 'Segoe UI Semibold';
-  WizardForm.WelcomeLabel1.Font.Size  := 18;
+  WizardForm.WelcomeLabel1.Font.Size  := 17;
   WizardForm.WelcomeLabel2.Font.Color := SUB;
   WizardForm.WelcomeLabel2.Font.Name  := 'Segoe UI';
   WizardForm.WelcomeLabel2.Font.Size  := 9;
 
-  // Finish page right-panel text
+  // Finish page — right panel
   WizardForm.FinishedHeadingLabel.Font.Color := WHITE;
   WizardForm.FinishedHeadingLabel.Font.Name  := 'Segoe UI Semibold';
-  WizardForm.FinishedHeadingLabel.Font.Size  := 18;
+  WizardForm.FinishedHeadingLabel.Font.Size  := 17;
   WizardForm.FinishedLabel.Font.Color        := SUB;
   WizardForm.FinishedLabel.Font.Name         := 'Segoe UI';
   WizardForm.FinishedLabel.Font.Size         := 9;
 
-  // Installing page status
+  // Installing page
   WizardForm.StatusLabel.Font.Color   := TEXT;
   WizardForm.StatusLabel.Font.Name    := 'Segoe UI';
   WizardForm.FilenameLabel.Font.Color := DIM;
