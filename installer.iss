@@ -106,6 +106,19 @@ end;
 
 // --------------------------------------------------------------------------
 
+// Force-skip every page we don't want (belt-and-suspenders over DisableXxx flags)
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (PageID = wpReady)
+         or (PageID = wpSelectTasks)
+         or (PageID = wpSelectDir)
+         or (PageID = wpSelectProgramGroup)
+         or (PageID = wpLicense)
+         or (PageID = wpPassword)
+         or (PageID = wpInfoBefore)
+         or (PageID = wpInfoAfter);
+end;
+
 procedure InitializeWizard;
 begin
   ApplyTheme;
