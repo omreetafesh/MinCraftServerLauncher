@@ -55,10 +55,16 @@ Filename: "{app}\Minecraft Server Launcher.exe"; Description: "Launch Minecraft 
 
 [Code]
 
-// Dark title bar — makes the whole window one cohesive dark theme
 function DwmSetWindowAttribute(Wnd: HWND; Attr: DWORD;
                                 var Value: DWORD; Size: DWORD): HRESULT;
   external 'DwmSetWindowAttribute@dwmapi.dll stdcall';
+
+// PostMessage lets us auto-click the Install button without re-entering VCL
+function PostMessage(hWnd: HWND; Msg: DWORD; wParam: Integer; lParam: Integer): Integer;
+  external 'PostMessageW@user32.dll stdcall';
+
+const
+  BM_CLICK = $00F5;
 
 // --------------------------------------------------------------------------
 // Palette (Windows BGR: $BBGGRR)
@@ -136,7 +142,7 @@ end;
 procedure CurPageChanged(CurPageID: Integer);
 begin
   ApplyTheme;
-  // If Ready page somehow bypasses DisableReadyPage, advance immediately
+  // Inno Setup handles Next via WM_COMMAND, not OnClick — use PostMessage
   if CurPageID = wpReady then
-    WizardForm.NextButton.OnClick(WizardForm.NextButton);
+    PostMessage(WizardForm.NextButton.Handle, BM_CLICK, 0, 0);
 end;
