@@ -21,9 +21,9 @@ WizardImageFile=dist\wizard_banner.bmp
 WizardSmallImageFile=dist\wizard_icon.bmp
 WizardSizePercent=130
 
-Compression=lzma2/ultra64
-SolidCompression=yes
-InternalCompressLevel=ultra64
+; No solid compression — allows DisableReadyPage to be respected
+Compression=lzma2/max
+SolidCompression=no
 
 UninstallDisplayIcon={app}\Minecraft Server Launcher.exe
 UninstallDisplayName=Minecraft Server Launcher
@@ -55,21 +55,30 @@ Filename: "{app}\Minecraft Server Launcher.exe"; Description: "Launch Minecraft 
 
 [Code]
 
+// Dark title bar — makes the whole window one cohesive dark theme
+function DwmSetWindowAttribute(Wnd: HWND; Attr: DWORD;
+                                var Value: DWORD; Size: DWORD): HRESULT;
+  external 'DwmSetWindowAttribute@dwmapi.dll stdcall';
+
 // --------------------------------------------------------------------------
-// Palette (Windows BGR: $BBGGRR = #RRGGBB byte-reversed)
+// Palette (Windows BGR: $BBGGRR)
+// Outer BG matches the banner's darkest edge so there's no colour clash
 const
-  BG    = $0D1A0D;
-  CARD  = $1A1A1A;
+  BG    = $0A120A;  // dark green — identical to banner edge
+  CARD  = $181E18;  // slightly lighter green-dark for inner page
   WHITE = $FFFFFF;
-  TEXT  = $F2F2F2;
-  SUB   = $AAAAAA;
-  DIM   = $666666;
+  TEXT  = $F0F0F0;
+  SUB   = $B0B0B0;
+  DIM   = $606060;
 
 // --------------------------------------------------------------------------
-// Dark theme applied to every page
-
 procedure ApplyTheme;
+var Dark: DWORD;
 begin
+  // Request dark title bar from Windows (Win10 v2004+ / Win11)
+  Dark := 1;
+  DwmSetWindowAttribute(WizardForm.Handle, 20, Dark, 4);
+
   WizardForm.Color           := BG;
   WizardForm.Font.Color      := TEXT;
   WizardForm.MainPanel.Color := BG;
@@ -105,8 +114,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-
-// Force-skip every page we don't want (belt-and-suspenders over DisableXxx flags)
+// Hard-skip every page we don't need
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := (PageID = wpReady)
@@ -119,6 +127,7 @@ begin
          or (PageID = wpInfoAfter);
 end;
 
+// --------------------------------------------------------------------------
 procedure InitializeWizard;
 begin
   ApplyTheme;
