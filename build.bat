@@ -211,9 +211,21 @@ set "RT_BIN=%DIST%\output\%APP_NAME%\runtime\bin"
 xcopy /q /y "%FX_BIN%\*.dll" "%RT_BIN%\" >nul
 echo [OK] Native libraries copied.
 
-:: -- Step 5: Create installer with Inno Setup (if installed) --
+:: -- Step 5: Generate wizard artwork ---------------------------
+echo.
+echo [5/5] Generating installer artwork...
+"%JAVA_HOME%\bin\javac" -d "%TOOLS%\bin" "%TOOLS%\MakeWizardArt.java" >nul 2>&1
+"%JAVA_HOME%\bin\java"  -cp "%TOOLS%\bin" MakeWizardArt "%DIST%" >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] Wizard art generation failed - installer will use defaults.
+) else (
+    echo [OK] Wizard artwork ready.
+)
+
+:: -- Step 6: Create installer with Inno Setup (if installed) --
 set "ISCC="
 for %%I in (
+    "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
     "C:\Program Files\Inno Setup 6\ISCC.exe"
     "C:\Program Files (x86)\Inno Setup 5\ISCC.exe"
@@ -225,7 +237,7 @@ for %%I in (
 
 if defined ISCC (
     echo.
-    echo [5/5] Creating installer...
+    echo [6/6] Building installer...
     "%ISCC%" "%ROOT%installer.iss" /Q
     if not errorlevel 1 (
         echo [OK] Installer: %DIST%\MinecraftServerLauncher-Setup.exe
