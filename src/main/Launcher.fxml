@@ -1,0 +1,586 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.chart.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.TextFlow?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="main.LauncherController"
+            styleClass="root"
+            stylesheets="@style.css"
+            prefWidth="1200" prefHeight="740">
+
+  <!-- ═══════════════════════ TOP BAR ═══════════════════════════ -->
+  <top>
+    <HBox styleClass="panel-bg" spacing="8" alignment="CENTER_LEFT"
+          style="-fx-padding: 8 0 8 14; -fx-border-color: #333; -fx-border-width: 0 0 1 0;"
+          onMousePressed="#handleWindowPress"
+          onMouseDragged="#handleWindowDrag">
+
+      <!-- Title -->
+      <Label text="⬡  MC Dashboard"
+             style="-fx-text-fill: #00ff41; -fx-font-size: 15; -fx-font-weight: bold; -fx-min-width: 145;"/>
+
+      <Region HBox.hgrow="ALWAYS"/>
+
+      <!-- System stats -->
+      <Label fx:id="resourceLabel"
+             style="-fx-text-fill:#777; -fx-font-size:11; -fx-font-family:Consolas;"/>
+      <Label fx:id="uptimeLabel"
+             style="-fx-text-fill:#777; -fx-font-size:11; -fx-font-family:Consolas; -fx-padding:0 0 0 8;"/>
+
+      <Separator orientation="VERTICAL" style="-fx-padding:0 4 0 4;"/>
+
+      <!-- Server status -->
+      <Label fx:id="statusLabel" text="OFFLINE"
+             style="-fx-text-fill:#ff4c4c; -fx-font-weight:bold; -fx-font-size:12; -fx-min-width:55;"/>
+
+      <Separator orientation="VERTICAL" style="-fx-padding:0 4 0 4;"/>
+
+      <!-- Profile selector + management -->
+      <ComboBox fx:id="profileCombo" prefWidth="110"
+                style="-fx-background-color:#2d2d2d; -fx-text-fill:#e0e0e0;"/>
+      <Button text="+" onAction="#handleNewProfile" styleClass="btn-mini"/>
+      <Button text="−" onAction="#handleDeleteProfile" styleClass="btn-mini"/>
+
+      <Separator orientation="VERTICAL" style="-fx-padding:0 4 0 4;"/>
+
+      <!-- Server controls -->
+      <Button fx:id="startButton"   text="▶ Start"   onAction="#handleStartServer"   styleClass="button-start"   prefWidth="80"/>
+      <Button fx:id="stopButton"    text="■ Stop"    onAction="#handleStopServer"    styleClass="button-stop"    prefWidth="72"/>
+      <Button fx:id="restartButton" text="↺ Restart" onAction="#handleRestartServer"  styleClass="button-restart" prefWidth="86"/>
+
+      <Separator orientation="VERTICAL" style="-fx-padding:0 4 0 4;"/>
+
+      <Button fx:id="settingsButton" text="⚙ Settings" onAction="#toggleSettings"
+              styleClass="button-settings" prefWidth="96"/>
+
+      <!-- Window controls — no gap between them, flush right -->
+      <HBox spacing="0" alignment="CENTER" style="-fx-padding:0 0 0 6;">
+        <Button text="—" onAction="#handleMinimize" styleClass="btn-wc" maxHeight="Infinity"/>
+        <Button text="⬜" onAction="#handleMaximize" styleClass="btn-wc" maxHeight="Infinity"
+                style="-fx-font-size:9;"/>
+        <Button text="✕" onAction="#handleWinClose" styleClass="btn-wc-close" maxHeight="Infinity"/>
+      </HBox>
+    </HBox>
+  </top>
+
+  <!-- ══════════════════════ CENTER ══════════════════════════════ -->
+  <center>
+    <HBox spacing="0">
+
+      <!-- ─────────────── CONSOLE AREA ────────────────────────── -->
+      <VBox fx:id="consoleAreaView" HBox.hgrow="ALWAYS"
+            style="-fx-padding: 10 6 10 10;">
+
+        <!-- Search bar -->
+        <HBox spacing="8" alignment="CENTER_LEFT" style="-fx-padding: 0 0 6 0;">
+          <Label text="🔍" style="-fx-text-fill:#888;"/>
+          <TextField fx:id="searchField" promptText="Filter logs…"
+                     HBox.hgrow="ALWAYS" style="-fx-pref-height:32;"/>
+        </HBox>
+
+        <!-- Console TabPane -->
+        <TabPane VBox.vgrow="ALWAYS" tabClosingPolicy="UNAVAILABLE">
+
+          <!-- ── Logs ────────────────────────────────────── -->
+          <Tab text="Logs">
+            <VBox styleClass="tab-content-bg" VBox.vgrow="ALWAYS">
+              <ListView fx:id="consoleList" VBox.vgrow="ALWAYS" styleClass="list-view"
+                        style="-fx-font-family:Consolas; -fx-font-size:12;"/>
+            </VBox>
+          </Tab>
+
+          <!-- ── Chat ───────────────────────────────────── -->
+          <Tab text="Chat">
+            <VBox styleClass="tab-content-bg">
+              <ListView fx:id="chatList" VBox.vgrow="ALWAYS" prefHeight="500"
+                        styleClass="list-view" style="-fx-font-family:Consolas;"/>
+            </VBox>
+          </Tab>
+
+          <!-- ── Diagnostics ────────────────────────────── -->
+          <Tab text="Diagnostics">
+            <VBox styleClass="tab-content-bg" spacing="6">
+              <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+              <HBox alignment="CENTER_LEFT" spacing="8">
+                <Label text="DETECTED ISSUES"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button text="Clear" onAction="#clearDiagnostics" styleClass="button-settings"
+                        style="-fx-font-size:11; -fx-padding:3 10 3 10;"/>
+              </HBox>
+              <TextArea fx:id="diagnosticsArea" editable="false" VBox.vgrow="ALWAYS"
+                        prefHeight="440" wrapText="true"
+                        promptText="No issues detected yet. Server problems will appear here automatically."/>
+            </VBox>
+          </Tab>
+
+          <!-- ── Whitelist / Bans ───────────────────────── -->
+          <Tab text="Whitelist / Bans">
+            <HBox styleClass="tab-content-bg" spacing="12">
+              <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+
+              <VBox spacing="6" HBox.hgrow="ALWAYS">
+                <Label text="WHITELIST"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11;"/>
+                <ListView fx:id="whitelistView" VBox.vgrow="ALWAYS" prefHeight="380"/>
+                <HBox spacing="6">
+                  <TextField fx:id="whitelistAddField" promptText="Player name…" HBox.hgrow="ALWAYS"/>
+                  <Button text="Add"    onAction="#handleAddToWhitelist"      styleClass="button-start"    prefWidth="54"/>
+                  <Button text="Remove" onAction="#handleRemoveFromWhitelist"  styleClass="button-stop"     prefWidth="66"/>
+                  <Button text="↻"      onAction="#loadWhitelist"             styleClass="button-settings" prefWidth="34"/>
+                </HBox>
+              </VBox>
+
+              <Separator orientation="VERTICAL"/>
+
+              <VBox spacing="6" HBox.hgrow="ALWAYS">
+                <Label text="BAN LIST"
+                       style="-fx-text-fill:#ff4c4c; -fx-font-weight:bold; -fx-font-size:11;"/>
+                <ListView fx:id="banListView" VBox.vgrow="ALWAYS" prefHeight="380"/>
+                <HBox spacing="6">
+                  <TextField fx:id="banAddField" promptText="Player name…" HBox.hgrow="ALWAYS"/>
+                  <Button text="Ban"    onAction="#handleAddBan" styleClass="button-stop"     prefWidth="54"/>
+                  <Button text="Pardon" onAction="#handlePardon" styleClass="button-settings" prefWidth="66"/>
+                  <Button text="↻"      onAction="#loadBanList"  styleClass="button-settings" prefWidth="34"/>
+                </HBox>
+              </VBox>
+            </HBox>
+          </Tab>
+
+          <!-- ── RCON ───────────────────────────────────── -->
+          <Tab text="RCON">
+            <VBox styleClass="tab-content-bg" spacing="10">
+              <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+
+              <Label text="REMOTE CONSOLE (RCON)"
+                     style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11;"/>
+
+              <GridPane hgap="10" vgap="8">
+                <columnConstraints>
+                  <ColumnConstraints minWidth="80" prefWidth="80"/>
+                  <ColumnConstraints hgrow="ALWAYS"/>
+                  <ColumnConstraints minWidth="70" prefWidth="70"/>
+                  <ColumnConstraints minWidth="140"/>
+                </columnConstraints>
+                <Label text="Host:"     GridPane.columnIndex="0" GridPane.rowIndex="0" style="-fx-text-fill:#888;"/>
+                <TextField fx:id="rconHostField" text="localhost"
+                           GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                <Label text="Port:"     GridPane.columnIndex="2" GridPane.rowIndex="0" style="-fx-text-fill:#888;"/>
+                <TextField fx:id="rconPortField" text="25575"
+                           GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                <Label text="Password:" GridPane.columnIndex="0" GridPane.rowIndex="1" style="-fx-text-fill:#888;"/>
+                <PasswordField fx:id="rconPasswordField" promptText="RCON password"
+                               GridPane.columnIndex="1" GridPane.rowIndex="1"
+                               GridPane.columnSpan="3"/>
+              </GridPane>
+
+              <HBox spacing="10" alignment="CENTER_LEFT">
+                <Button fx:id="rconConnectButton" text="Connect" onAction="#handleRconConnect"
+                        styleClass="button-start" prefWidth="120"/>
+                <Label fx:id="rconStatusLabel" text="Disconnected"
+                       style="-fx-text-fill:#ff4c4c; -fx-font-size:12;"/>
+              </HBox>
+
+              <ListView fx:id="rconOutputList" VBox.vgrow="ALWAYS" prefHeight="300"
+                        style="-fx-font-family:Consolas; -fx-font-size:12;"/>
+
+              <HBox spacing="8">
+                <TextField fx:id="rconCommandField" promptText="RCON command…"
+                           onAction="#handleRconCommand" HBox.hgrow="ALWAYS"/>
+                <Button text="Send" onAction="#handleRconCommand"
+                        styleClass="button-settings" prefWidth="80"/>
+              </HBox>
+            </VBox>
+          </Tab>
+
+          <!-- ── Macros ─────────────────────────────────── -->
+          <Tab text="Macros">
+            <VBox styleClass="tab-content-bg" spacing="10">
+              <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+              <Label text="COMMAND MACROS"
+                     style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11;"/>
+              <Label text="Save multi-command sequences and run them with one click."
+                     style="-fx-text-fill:#888; -fx-font-size:11;"/>
+              <ListView fx:id="macrosList" VBox.vgrow="ALWAYS" prefHeight="380"/>
+              <HBox spacing="8">
+                <Button text="▶ Run Selected" onAction="#handleRunMacro"
+                        styleClass="button-start"    HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                <Button text="+ New Macro"    onAction="#handleAddMacro"
+                        styleClass="button-settings" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                <Button text="✕ Delete"       onAction="#handleDeleteMacro"
+                        styleClass="button-stop"     HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+              </HBox>
+            </VBox>
+          </Tab>
+
+          <!-- ── Monitor ────────────────────────────────── -->
+          <Tab text="📊 Monitor">
+            <VBox styleClass="tab-content-bg" spacing="8">
+              <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+              <HBox alignment="CENTER_LEFT" spacing="8">
+                <Label text="LIVE PERFORMANCE MONITOR"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label text="Updates every 5 s — start server to begin"
+                       style="-fx-text-fill:#555; -fx-font-size:10; -fx-font-family:Consolas;"/>
+              </HBox>
+              <VBox fx:id="monitorContainer" VBox.vgrow="ALWAYS" spacing="6"/>
+            </VBox>
+          </Tab>
+
+          <!-- ── Player History ─────────────────────────── -->
+          <Tab text="👥 History">
+            <VBox styleClass="tab-content-bg" spacing="8">
+              <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+              <HBox alignment="CENTER_LEFT" spacing="8">
+                <Label text="PLAYER HISTORY &amp; STATS"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="playerStatsStatus" text="Not loaded"
+                       style="-fx-text-fill:#555; -fx-font-size:10;"/>
+                <Button text="↻ Refresh" onAction="#refreshPlayerStats"
+                        styleClass="button-settings"
+                        style="-fx-font-size:11; -fx-padding:3 10 3 10;"/>
+              </HBox>
+              <TableView fx:id="playerStatsTable" VBox.vgrow="ALWAYS"
+                         style="-fx-font-family:Consolas; -fx-font-size:12;">
+                <columns>
+                  <TableColumn text="Player"       prefWidth="130"/>
+                  <TableColumn text="Play Time"    prefWidth="110"/>
+                  <TableColumn text="Deaths"       prefWidth="72"/>
+                  <TableColumn text="Kills"        prefWidth="72"/>
+                  <TableColumn text="Dist. (km)"   prefWidth="90"/>
+                  <TableColumn text="UUID"         prefWidth="240"/>
+                </columns>
+                <columnResizePolicy>
+                  <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+                </columnResizePolicy>
+              </TableView>
+            </VBox>
+          </Tab>
+
+        </TabPane>
+
+        <!-- Command input -->
+        <HBox spacing="8" style="-fx-padding: 8 0 0 0;">
+          <TextField fx:id="commandInput" promptText="Enter server command…"
+                     onAction="#handleSendCommand" HBox.hgrow="ALWAYS"
+                     style="-fx-font-family:Consolas; -fx-font-size:13;"/>
+          <Button text="Send" onAction="#handleSendCommand"
+                  styleClass="button-settings" prefWidth="80"/>
+        </HBox>
+
+      </VBox>
+
+      <!-- ─────────────── SETTINGS PANE (tabbed) ──────────────── -->
+      <VBox fx:id="settingsPane" HBox.hgrow="ALWAYS" visible="false" managed="false"
+            style="-fx-padding: 10 10 10 6;">
+
+        <TabPane tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+
+          <!-- ══════ SERVER TAB ══════ -->
+          <Tab text="⬡  Server">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+              <VBox spacing="0" style="-fx-padding: 20;">
+
+                <Label text="SERVER DIRECTORY"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="The folder containing your server JAR and world data."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 10 0;" wrapText="true"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                  <TextField fx:id="serverPathField" promptText="No folder selected…"
+                             editable="false" HBox.hgrow="ALWAYS"/>
+                  <Button text="Browse…" onAction="#handleSelectServerDirectory" styleClass="button-settings" prefWidth="90"/>
+                  <Button text="Clear"   onAction="#handleClearServerDirectory"  styleClass="button-stop"     prefWidth="60"/>
+                </HBox>
+
+                <Separator><VBox.margin><Insets top="20" bottom="20"/></VBox.margin></Separator>
+
+                <Label text="SERVER JAR"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Filename of the JAR inside your server directory (e.g. paper-1.21.4-100.jar)."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 10 0;" wrapText="true"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                  <TextField fx:id="serverJarField" promptText="server.jar" HBox.hgrow="ALWAYS"/>
+                  <Button text="Reset" onAction="#resetServerJar" styleClass="button-settings" prefWidth="60"/>
+                </HBox>
+
+                <Separator><VBox.margin><Insets top="20" bottom="20"/></VBox.margin></Separator>
+
+                <Label text="DOWNLOAD SERVER JAR"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Download Paper, Vanilla, or Fabric directly into your server folder."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 12 0;" wrapText="true"/>
+                <Button text="⬇  Download Server JAR…" onAction="#showJarDownloader"
+                        styleClass="button-settings" prefWidth="220"
+                        style="-fx-padding:8 16 8 16;"/>
+
+              </VBox>
+            </ScrollPane>
+          </Tab>
+
+          <!-- ══════ PERFORMANCE TAB ══════ -->
+          <Tab text="⚡  Performance">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+              <VBox spacing="0" style="-fx-padding: 20;">
+
+                <Label text="MEMORY ALLOCATION"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Maximum RAM for the server JVM in gigabytes. 4–8 GB recommended for modded servers."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 10 0;" wrapText="true"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                  <TextField fx:id="memoryField" text="2" prefWidth="80"
+                             style="-fx-font-family:Consolas; -fx-font-size:14; -fx-alignment:center;"/>
+                  <Label text="GB" style="-fx-text-fill:#e0e0e0; -fx-font-size:13;"/>
+                </HBox>
+
+                <Separator><VBox.margin><Insets top="22" bottom="22"/></VBox.margin></Separator>
+
+                <Label text="JVM FLAG OPTIMIZER"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Aikar's G1GC flags — 20 production-tuned parameters that reduce garbage-collection pauses significantly."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 12 0;" wrapText="true"/>
+                <CheckBox fx:id="optimizedFlagsCheck" text="Enable Aikar's optimized JVM flags"
+                          onAction="#handleOptimizedFlagsToggle"/>
+
+                <VBox style="-fx-background-color:#1a2a1a; -fx-border-color:#2a4a2a;
+                             -fx-border-radius:8; -fx-background-radius:8; -fx-padding:10 14 10 14;">
+                  <VBox.margin><Insets top="14"/></VBox.margin>
+                  <Label text="Flags applied when enabled:"
+                         style="-fx-text-fill:#555; -fx-font-size:10; -fx-font-weight:bold;"/>
+                  <Label text="-XX:+UseG1GC  -XX:+ParallelRefProcEnabled  -XX:MaxGCPauseMillis=200&#10;-XX:G1HeapRegionSize=8M  -XX:G1NewSizePercent=30  -XX:G1MaxNewSizePercent=40&#10;-XX:InitiatingHeapOccupancyPercent=15  +14 additional G1GC tuning flags"
+                         style="-fx-font-family:Consolas; -fx-font-size:10; -fx-text-fill:#2a6a2a; -fx-padding:4 0 0 0;" wrapText="true"/>
+                </VBox>
+
+              </VBox>
+            </ScrollPane>
+          </Tab>
+
+          <!-- ══════ WORLD CONFIG TAB ══════ -->
+          <Tab text="🌍  World Config">
+            <VBox styleClass="tab-content-bg" spacing="0">
+
+              <!-- Toolbar -->
+              <HBox spacing="10" alignment="CENTER_LEFT"
+                    style="-fx-padding:10 12 10 12; -fx-border-color:#333; -fx-border-width:0 0 1 0;">
+                <Label text="SERVER PROPERTIES"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <CheckBox fx:id="rawEditToggle" text="Raw Edit" onAction="#toggleRawEdit"
+                          style="-fx-text-fill:#888; -fx-font-size:11;"/>
+                <Button text="↻ Reload" onAction="#handleReloadProperties"
+                        styleClass="button-settings" style="-fx-font-size:11; -fx-padding:4 12 4 12;"/>
+                <Button text="💾 Save" onAction="#handleSavePropertiesForm"
+                        styleClass="button-start" style="-fx-font-size:11; -fx-padding:4 14 4 14;"/>
+              </HBox>
+
+              <!-- Form mode (default) -->
+              <ScrollPane fx:id="propertiesFormScroll" fitToWidth="true" VBox.vgrow="ALWAYS"
+                          styleClass="settings-scroll">
+                <VBox fx:id="propertiesFormContainer" spacing="0"/>
+              </ScrollPane>
+
+              <!-- Raw text mode (hidden by default) -->
+              <TextArea fx:id="propertiesEditor" visible="false" managed="false"
+                        VBox.vgrow="ALWAYS"
+                        style="-fx-font-family:Consolas; -fx-font-size:12;
+                               -fx-control-inner-background:#1a1a1a; -fx-text-fill:#4db8ff;"
+                        promptText="# server.properties raw editor"/>
+
+            </VBox>
+          </Tab>
+
+          <!-- ══════ BACKUP TAB ══════ -->
+          <Tab text="💾  Backup">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+              <VBox spacing="0" style="-fx-padding: 20;">
+
+                <Label text="BACKUP DIRECTORY"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Where world backup ZIPs are saved. A different drive provides extra protection."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 10 0;" wrapText="true"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                  <TextField fx:id="backupPathField" promptText="No folder selected…"
+                             editable="false" HBox.hgrow="ALWAYS"/>
+                  <Button text="Browse…" onAction="#handleSelectBackupDirectory" styleClass="button-settings" prefWidth="90"/>
+                  <Button text="Clear"   onAction="#handleClearBackupDirectory"  styleClass="button-stop"     prefWidth="60"/>
+                </HBox>
+
+                <Separator><VBox.margin><Insets top="20" bottom="20"/></VBox.margin></Separator>
+
+                <Label text="AUTO-BACKUP"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <CheckBox fx:id="autoBackupCheck" text="Backup world automatically every 24 hours"
+                          onAction="#handleBackupToggle"/>
+
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                  <VBox.margin><Insets top="10"/></VBox.margin>
+                  <Label text="Keep max" style="-fx-text-fill:#888;"/>
+                  <TextField fx:id="maxBackupsField" text="5" prefWidth="60"
+                             style="-fx-font-family:Consolas; -fx-font-size:13; -fx-alignment:center;"/>
+                  <Label text="backups (oldest deleted automatically)" style="-fx-text-fill:#888;"/>
+                </HBox>
+
+                <HBox spacing="8">
+                  <VBox.margin><Insets top="14"/></VBox.margin>
+                  <Button text="📦 Backup Now"  onAction="#forceBackup"       styleClass="button-settings" prefWidth="140" style="-fx-padding:8 14 8 14;"/>
+                  <Button text="📂 Open Folder" onAction="#openBackupFolder"  styleClass="button-settings" prefWidth="140" style="-fx-padding:8 14 8 14;"/>
+                </HBox>
+
+                <Separator><VBox.margin><Insets top="20" bottom="20"/></VBox.margin></Separator>
+
+                <Label text="RESTORE FROM BACKUP"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Select a ZIP and restore it. The current world/ folder is renamed, not deleted."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 10 0;" wrapText="true"/>
+                <ListView fx:id="backupFilesList" prefHeight="130"
+                          style="-fx-font-family:Consolas; -fx-font-size:12;"/>
+                <HBox spacing="8">
+                  <VBox.margin><Insets top="8"/></VBox.margin>
+                  <Button text="↻ Refresh List"      onAction="#refreshBackupList"    styleClass="button-settings" prefWidth="130"/>
+                  <Button text="⏪ Restore Selected"  onAction="#handleRestoreBackup"  styleClass="button-restart"  prefWidth="170"/>
+                </HBox>
+
+              </VBox>
+            </ScrollPane>
+          </Tab>
+
+          <!-- ══════ AUTOMATION TAB ══════ -->
+          <Tab text="🤖  Automation">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+              <VBox spacing="0" style="-fx-padding: 20;">
+
+                <Label text="CRASH RECOVERY"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Automatically restart the server after a crash or unclean exit."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 10 0;" wrapText="true"/>
+                <CheckBox fx:id="crashRestartCheck" text="Auto-restart on crash"
+                          onAction="#handleCrashRestartToggle"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                  <VBox.margin><Insets top="10"/></VBox.margin>
+                  <Label text="Delay before restart:" style="-fx-text-fill:#888;"/>
+                  <TextField fx:id="crashRestartDelayField" text="10" prefWidth="60"
+                             style="-fx-font-family:Consolas; -fx-font-size:13; -fx-alignment:center;"
+                             onAction="#handleCrashRestartToggle"/>
+                  <Label text="seconds" style="-fx-text-fill:#888;"/>
+                </HBox>
+
+                <Separator><VBox.margin><Insets top="22" bottom="22"/></VBox.margin></Separator>
+
+                <Label text="SCHEDULED RESTART"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Restart the server daily at a fixed time. A 1-minute in-game warning is broadcast before restart."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 10 0;" wrapText="true"/>
+                <CheckBox fx:id="scheduledRestartCheck" text="Daily scheduled restart"
+                          onAction="#handleScheduledRestartToggle"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                  <VBox.margin><Insets top="10"/></VBox.margin>
+                  <Label text="Restart at:" style="-fx-text-fill:#888;"/>
+                  <TextField fx:id="scheduledRestartField" text="04:00" prefWidth="80"
+                             style="-fx-font-family:Consolas; -fx-font-size:13; -fx-alignment:center;"
+                             promptText="HH:mm" onAction="#handleScheduledRestartToggle"/>
+                  <Label text="(24-hour time, server timezone)" style="-fx-text-fill:#555; -fx-font-size:11;"/>
+                </HBox>
+
+                <VBox style="-fx-background-color:#1a1a2a; -fx-border-color:#2a2a4a;
+                             -fx-border-radius:8; -fx-background-radius:8; -fx-padding:10 14 10 14;">
+                  <VBox.margin><Insets top="20"/></VBox.margin>
+                  <Label text="ℹ  Tips"
+                         style="-fx-text-fill:#5577cc; -fx-font-weight:bold; -fx-font-size:11;"/>
+                  <Label text="• Use a low-traffic time such as 04:00 or 06:00.&#10;• The scheduler checks every minute — set to HH:mm exactly.&#10;• Players see a 1-minute broadcast warning before each restart."
+                         style="-fx-text-fill:#445599; -fx-font-size:11; -fx-padding:4 0 0 0;" wrapText="true"/>
+                </VBox>
+
+              </VBox>
+            </ScrollPane>
+          </Tab>
+
+          <!-- ══════ MOTD EDITOR TAB ══════ -->
+          <Tab text="🎨  MOTD">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+              <VBox spacing="0" style="-fx-padding: 20;">
+
+                <Label text="MOTD VISUAL EDITOR"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="Design your server description shown in the Minecraft multiplayer list. Use &amp;0–&amp;f for colors, &amp;l bold, &amp;o italic, &amp;n underline, &amp;m strikethrough, &amp;r reset."
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 14 0;" wrapText="true"/>
+
+                <!-- Color palette built programmatically from setupMotdEditor() -->
+                <VBox fx:id="motdPaletteContainer" spacing="5">
+                  <VBox.margin><Insets bottom="14"/></VBox.margin>
+                </VBox>
+
+                <Label text="MOTD Text:"
+                       style="-fx-text-fill:#cccccc; -fx-font-size:11; -fx-padding:0 0 6 0;"/>
+                <TextArea fx:id="motdRawField"
+                          promptText="&amp;6My Minecraft Server&#10;&amp;ePlaying on 1.21"
+                          prefRowCount="3" wrapText="true"
+                          onKeyReleased="#handleMotdInput"
+                          style="-fx-font-family:Consolas; -fx-font-size:13;"/>
+
+                <Separator><VBox.margin><Insets top="18" bottom="14"/></VBox.margin></Separator>
+
+                <Label text="PREVIEW"
+                       style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:11; -fx-padding:0 0 8 0;"/>
+                <Label text="How it looks in the Minecraft server list:"
+                       style="-fx-text-fill:#888; -fx-font-size:11; -fx-padding:0 0 10 0;"/>
+
+                <VBox style="-fx-background-color:#111111; -fx-border-color:#444;
+                             -fx-border-radius:8; -fx-background-radius:8;
+                             -fx-padding:16 18 16 18; -fx-min-height:70;">
+                  <VBox.margin><Insets bottom="16"/></VBox.margin>
+                  <TextFlow fx:id="motdPreview" lineSpacing="4"/>
+                </VBox>
+
+                <HBox spacing="10">
+                  <Button text="💾 Apply to server.properties" onAction="#applyMotdToProperties"
+                          styleClass="button-start" style="-fx-padding:8 16 8 16;"/>
+                  <Button text="Clear" onAction="#clearMotd"
+                          styleClass="button-settings" style="-fx-padding:8 12 8 12;"/>
+                </HBox>
+
+              </VBox>
+            </ScrollPane>
+          </Tab>
+
+        </TabPane>
+      </VBox>
+
+      <!-- ─────────────── PLAYER SIDEBAR ──────────────────────── -->
+      <VBox style="-fx-min-width:180; -fx-max-width:220; -fx-pref-width:200;
+                   -fx-background-color:#1a1a1a; -fx-border-color:#333;
+                   -fx-border-width:0 0 0 1; -fx-padding:10 8 10 8;" spacing="8">
+
+        <HBox fx:id="counterContainer" alignment="CENTER" visible="false" managed="false"
+              spacing="6"
+              style="-fx-background-color:#1a2a1a; -fx-border-color:#2a4a2a;
+                     -fx-border-radius:20; -fx-background-radius:20; -fx-padding:5 14 5 14;">
+          <Label text="● " style="-fx-text-fill:#00ff41; -fx-font-size:10;"/>
+          <Label fx:id="playerCountLabel" text="0"
+                 style="-fx-text-fill:#00ff41; -fx-font-weight:bold; -fx-font-size:13;"/>
+          <Label text="online" style="-fx-text-fill:#00bb30; -fx-font-size:11;"/>
+        </HBox>
+
+        <Label text="PLAYERS" style="-fx-text-fill:#666; -fx-font-size:10; -fx-font-weight:bold;"/>
+
+        <TableView fx:id="playerTable" VBox.vgrow="ALWAYS"
+                   style="-fx-font-family:Consolas; -fx-font-size:12;">
+          <columns>
+            <TableColumn text="Name" prefWidth="170" minWidth="120"/>
+          </columns>
+          <columnResizePolicy>
+            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+          </columnResizePolicy>
+        </TableView>
+
+      </VBox>
+
+    </HBox>
+  </center>
+
+</BorderPane>

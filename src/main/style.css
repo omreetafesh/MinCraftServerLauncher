@@ -1,0 +1,196 @@
+/* ═══════════════════════════ BASE ═══════════════════════════════ */
+.root       { -fx-background-color: #121212; -fx-focus-color: transparent; -fx-faint-focus-color: transparent;
+              -fx-border-color: #2e2e2e; -fx-border-width: 1; }
+
+/* ═══════════════════════ WINDOW CONTROLS ════════════════════════ */
+/* Must beat .button defaults — use all four bg-insets layers → transparent */
+.btn-wc, .btn-wc-close {
+    -fx-background-color: transparent, transparent, transparent, transparent;
+    -fx-background-insets: 0, 0, 0, 0;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-effect: null;
+    -fx-text-fill: #888888;
+    -fx-font-size: 11;
+    -fx-cursor: hand;
+    -fx-padding: 0 16 0 16;
+    -fx-min-width: 46;
+    -fx-max-height: Infinity;
+}
+.btn-wc:hover   { -fx-background-color: #3c3c3c; -fx-text-fill: #ffffff; }
+.btn-wc:pressed { -fx-background-color: #505050; -fx-text-fill: #ffffff; }
+.btn-wc-close:hover   { -fx-background-color: #c42b1c; -fx-text-fill: #ffffff; }
+.btn-wc-close:pressed { -fx-background-color: #e81123; -fx-text-fill: #ffffff; }
+
+/* ═══════════════════════ PROFILE MINI BUTTONS ═══════════════════ */
+.btn-mini {
+    -fx-background-color: #282828;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-border-color: #3d3d3d;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-text-fill: #888888;
+    -fx-font-size: 14;
+    -fx-cursor: hand;
+    -fx-padding: 2 6 2 6;
+    -fx-effect: null;
+}
+.btn-mini:hover   { -fx-background-color: #363636; -fx-text-fill: #cccccc; -fx-border-color: #555555; }
+.btn-mini:pressed { -fx-background-color: #444444; }
+.panel-bg   { -fx-background-color: #1e1e1e; -fx-background-radius: 12; }
+.label      { -fx-text-fill: #e0e0e0; }
+
+/* ═══════════════════════════ INPUTS ═════════════════════════════ */
+.text-field, .password-field {
+    -fx-background-color: #2d2d2d;
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+    -fx-prompt-text-fill: #666666;
+    -fx-border-color: #3a3a3a;
+    -fx-border-radius: 8;
+}
+.text-field:focused, .password-field:focused {
+    -fx-border-color: #00ff41;
+}
+
+/* ═══════════════════════════ TEXT AREA ══════════════════════════ */
+.text-area, .text-area .viewport, .text-area .content {
+    -fx-background-color: #1a1a1a;
+    -fx-control-inner-background: #1a1a1a;
+}
+.text-area {
+    -fx-text-fill: #4db8ff;
+    -fx-font-family: "Consolas";
+    -fx-border-color: #333333;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+.text-area .scroll-bar:vertical,
+.text-area .scroll-bar:horizontal { -fx-background-color: #2d2d2d; }
+.text-area .scroll-bar:vertical .thumb,
+.text-area .scroll-bar:horizontal .thumb { -fx-background-color: #555; -fx-background-radius: 4; }
+
+/* ═══════════════════════════ LIST VIEW ══════════════════════════ */
+.list-view {
+    -fx-background-color: #1a1a1a;
+    -fx-border-color: #333333;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+.list-view .virtual-flow .viewport { -fx-background-color: #1a1a1a; }
+.list-cell                         { -fx-background-color: #1a1a1a; -fx-padding: 2 6 2 6; }
+.list-cell:odd                     { -fx-background-color: #1d1d1d; }
+.list-cell:selected                { -fx-background-color: #2a4060; }
+.list-cell:selected .label         { -fx-text-fill: white; }
+.list-view .scroll-bar:vertical,
+.list-view .scroll-bar:horizontal  { -fx-background-color: #2d2d2d; }
+.list-view .scroll-bar:vertical .thumb,
+.list-view .scroll-bar:horizontal .thumb { -fx-background-color: #555; -fx-background-radius: 4; }
+
+/* ═══════════════════════════ SCROLL PANE ════════════════════════ */
+.settings-scroll { -fx-background-color: transparent; -fx-background: transparent; }
+.settings-scroll .viewport { -fx-background-color: transparent; }
+.settings-scroll .scroll-bar:vertical,
+.settings-scroll .scroll-bar:horizontal { -fx-background-color: #2d2d2d; }
+.settings-scroll .scroll-bar .thumb     { -fx-background-color: #555; -fx-background-radius: 4; }
+
+/* ═══════════════════════════ TAB PANE ═══════════════════════════ */
+.tab-pane { -fx-tab-min-height: 32; }
+.tab-pane .tab-header-area              { -fx-background-color: #1e1e1e; -fx-padding: 0 0 0 0; }
+.tab-pane .tab-header-area .tab-header-background { -fx-background-color: #1e1e1e; }
+.tab-pane .tab-header-area .headers-region .tab {
+    -fx-background-color: #2d2d2d;
+    -fx-background-radius: 6 6 0 0;
+    -fx-padding: 6 16 6 16;
+    -fx-border-color: transparent;
+}
+.tab-pane .tab-header-area .headers-region .tab:selected {
+    -fx-background-color: #1a1a1a;
+    -fx-border-color: #00ff41 transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+.tab .tab-label { -fx-text-fill: #cccccc; -fx-font-weight: bold; -fx-font-size: 12; }
+.tab:selected .tab-label { -fx-text-fill: #00ff41; }
+.tab-pane .tab-content-area { -fx-background-color: #1a1a1a; }
+.tab-content-bg { -fx-background-color: #1a1a1a; }
+
+/* ═══════════════════════════ COMBO BOX ══════════════════════════ */
+.combo-box {
+    -fx-background-color: #2d2d2d;
+    -fx-border-color: #3a3a3a;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+.combo-box .list-cell         { -fx-text-fill: #e0e0e0; -fx-background-color: #2d2d2d; }
+.combo-box .arrow-button       { -fx-background-color: #2d2d2d; }
+.combo-box .arrow               { -fx-background-color: #888888; }
+.combo-box-popup .list-view    { -fx-background-color: #2d2d2d; -fx-border-color: #555; }
+.combo-box-popup .list-cell    { -fx-text-fill: #e0e0e0; -fx-background-color: #2d2d2d; }
+.combo-box-popup .list-cell:hover    { -fx-background-color: #3a3a3a; }
+.combo-box-popup .list-cell:selected { -fx-background-color: #2a4060; }
+
+/* ═══════════════════════════ CHECKBOXES ═════════════════════════ */
+.check-box .box { -fx-background-color: #2d2d2d; -fx-border-color: #555; -fx-border-radius: 3; }
+.check-box:selected .mark { -fx-background-color: #00ff41; }
+.check-box .label { -fx-text-fill: #e0e0e0; }
+
+/* ═══════════════════════════ TABLE VIEW ═════════════════════════ */
+.table-view {
+    -fx-background-color: #1e1e1e;
+    -fx-background-radius: 8;
+    -fx-border-color: #333;
+    -fx-border-radius: 8;
+}
+.table-view .virtual-flow .viewport    { -fx-background-color: #1e1e1e; }
+.table-view .column-header-background  { -fx-background-color: #2d2d2d; -fx-background-radius: 7 7 0 0; }
+.table-view .column-header             { -fx-background-color: transparent; }
+.table-view .column-header .label      { -fx-text-fill: #e0e0e0; -fx-font-weight: bold; }
+.table-view .table-row-cell            { -fx-background-color: #1e1e1e; -fx-table-cell-border-color: #2a2a2a; }
+.table-view .table-row-cell:empty      { -fx-background-color: #1e1e1e; -fx-table-cell-border-color: transparent; }
+.table-view .table-row-cell:odd        { -fx-background-color: #222222; }
+.table-view .table-cell                { -fx-text-fill: #e0e0e0; -fx-alignment: center-left; }
+
+/* ═══════════════════════════ CONTEXT MENU ═══════════════════════ */
+.context-menu { -fx-background-color: #1e1e1e; -fx-border-color: #444; -fx-background-radius: 5; }
+.context-menu .menu-item { -fx-text-fill: #e0e0e0; -fx-padding: 7 14 7 14; }
+.context-menu .menu-item:focused { -fx-background-color: #2d2d2d; }
+.context-menu .menu-item .label  { -fx-text-fill: #e0e0e0; }
+
+/* ═══════════════════════════ SEPARATOR ══════════════════════════ */
+.separator .line { -fx-border-color: #333; }
+
+/* ═══════════════════════════ BUTTONS ════════════════════════════ */
+.button-start   { -fx-background-color: #2e7d32; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-weight: bold; -fx-cursor: hand; }
+.button-start:hover   { -fx-background-color: #388e3c; }
+
+.button-restart { -fx-background-color: #e65100; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-weight: bold; -fx-cursor: hand; }
+.button-restart:hover { -fx-background-color: #f57c00; }
+
+.button-stop    { -fx-background-color: #b71c1c; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-weight: bold; -fx-cursor: hand; }
+.button-stop:hover    { -fx-background-color: #d32f2f; }
+
+.button-settings { -fx-background-color: #37474f; -fx-text-fill: white; -fx-background-radius: 8; -fx-font-weight: bold; -fx-cursor: hand; }
+.button-settings:hover { -fx-background-color: #546e7a; }
+
+/* ═══════════════════════════ CHARTS ═════════════════════════════ */
+.chart                          { -fx-background-color: #1a1a1a; -fx-padding: 4 8 4 0; }
+.chart-title                    { -fx-text-fill: #888888; -fx-font-size: 11; }
+.chart-plot-background          { -fx-background-color: #1a1a1a; }
+.chart-vertical-grid-lines      { -fx-stroke: #2a2a2a; }
+.chart-horizontal-grid-lines    { -fx-stroke: #2a2a2a; }
+.chart-alternative-row-fill     { -fx-fill: transparent; }
+.chart-alternative-column-fill  { -fx-fill: transparent; }
+.axis                           { -fx-tick-label-fill: #666; -fx-tick-mark-fill: #444; }
+.axis-label                     { -fx-text-fill: #555; -fx-font-size: 10; }
+/* Line / Area series colours */
+.default-color0.chart-series-line  { -fx-stroke: #00ff41; -fx-stroke-width: 2; }
+.default-color0.chart-area-fill    { -fx-fill: rgba(0,255,65,0.10); }
+.default-color0.chart-line-symbol  { -fx-background-color: #00ff41; }
+.chart-legend                   { -fx-background-color: transparent; }
+.chart-legend-item-symbol       { -fx-background-color: #00ff41; }
+
+/* ═══════════════════════════ MOTD PREVIEW BOX ═══════════════════ */
+.motd-preview-box { -fx-background-color: #111111; -fx-border-color: #444;
+                    -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 14 18 14 18; }

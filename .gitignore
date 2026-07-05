@@ -1,0 +1,30 @@
+# Build outputs
+out/
+dist/
+tools/bin/
+
+# Eclipse project files
+.classpath
+.project
+.settings/
+bin/
+
+# Loose Eclipse artifacts at root
+/module-info.class
+/app.jar
+/icon.ico
+/output/
+/main/
+
+# JavaFX SDK — too large for git (500 MB+)
+# Place it locally at the project root before building
+javafx-sdk-*/
+
+# Library JARs (not used by this build)
+lib/
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
