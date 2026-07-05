@@ -96,6 +96,8 @@ begin
   WizardForm.PageDescriptionLabel.Font.Color := SUB;
   WizardForm.PageDescriptionLabel.Font.Name  := 'Segoe UI';
   WizardForm.PageDescriptionLabel.Font.Size  := 9;
+  WizardForm.PageDescriptionLabel.Top :=
+    WizardForm.PageNameLabel.Top + WizardForm.PageNameLabel.Height + ScaleY(2);
 
   // Welcome page — size 14 avoids overlap with WelcomeLabel2 below it
   WizardForm.WelcomeLabel1.Font.Color := WHITE;
