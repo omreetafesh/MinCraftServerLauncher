@@ -136,4 +136,7 @@ end;
 procedure CurPageChanged(CurPageID: Integer);
 begin
   ApplyTheme;
+  // If Ready page somehow bypasses DisableReadyPage, advance immediately
+  if CurPageID = wpReady then
+    WizardForm.NextButton.OnClick(WizardForm.NextButton);
 end;
