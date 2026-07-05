@@ -9,7 +9,6 @@ AppCopyright=Copyright (C) 2025 Omree
 DefaultDirName={localappdata}\Programs\Minecraft Server Launcher
 DefaultGroupName=Minecraft Tools
 DisableProgramGroupPage=yes
-DisableDirPage=yes
 DisableReadyPage=yes
 
 OutputDir=dist
@@ -98,19 +97,33 @@ begin
   WizardForm.PageDescriptionLabel.Font.Name  := 'Segoe UI';
   WizardForm.PageDescriptionLabel.Font.Size  := 9;
 
+  // Welcome page — size 14 avoids overlap with WelcomeLabel2 below it
   WizardForm.WelcomeLabel1.Font.Color := WHITE;
   WizardForm.WelcomeLabel1.Font.Name  := 'Segoe UI Semibold';
-  WizardForm.WelcomeLabel1.Font.Size  := 17;
+  WizardForm.WelcomeLabel1.Font.Size  := 14;
   WizardForm.WelcomeLabel2.Font.Color := SUB;
   WizardForm.WelcomeLabel2.Font.Name  := 'Segoe UI';
   WizardForm.WelcomeLabel2.Font.Size  := 9;
+  // Reposition so WelcomeLabel2 sits below the resized WelcomeLabel1
+  WizardForm.WelcomeLabel2.Top :=
+    WizardForm.WelcomeLabel1.Top + WizardForm.WelcomeLabel1.Height + ScaleY(8);
 
+  // Finished page
   WizardForm.FinishedHeadingLabel.Font.Color := WHITE;
   WizardForm.FinishedHeadingLabel.Font.Name  := 'Segoe UI Semibold';
-  WizardForm.FinishedHeadingLabel.Font.Size  := 17;
+  WizardForm.FinishedHeadingLabel.Font.Size  := 14;
   WizardForm.FinishedLabel.Font.Color        := SUB;
   WizardForm.FinishedLabel.Font.Name         := 'Segoe UI';
   WizardForm.FinishedLabel.Font.Size         := 9;
+  WizardForm.FinishedLabel.Top :=
+    WizardForm.FinishedHeadingLabel.Top + WizardForm.FinishedHeadingLabel.Height + ScaleY(8);
+
+  // Dir chooser page
+  WizardForm.SelectDirLabel.Font.Color := SUB;
+  WizardForm.SelectDirLabel.Font.Name  := 'Segoe UI';
+  WizardForm.DirEdit.Color             := $282E28;
+  WizardForm.DirEdit.Font.Color        := TEXT;
+  WizardForm.DirEdit.Font.Name         := 'Segoe UI';
 
   WizardForm.StatusLabel.Font.Color   := TEXT;
   WizardForm.StatusLabel.Font.Name    := 'Segoe UI';
@@ -125,7 +138,6 @@ function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := (PageID = wpReady)
          or (PageID = wpSelectTasks)
-         or (PageID = wpSelectDir)
          or (PageID = wpSelectProgramGroup)
          or (PageID = wpLicense)
          or (PageID = wpPassword)
