@@ -6,9 +6,11 @@ AppPublisherURL=https://github.com/omreetafesh/MinCraftServerLauncher
 AppSupportURL=https://github.com/omreetafesh/MinCraftServerLauncher/issues
 AppCopyright=Copyright (C) 2025 Omree
 
-DefaultDirName={autopf}\Minecraft Server Launcher
+DefaultDirName={localappdata}\Programs\Minecraft Server Launcher
 DefaultGroupName=Minecraft Tools
 DisableProgramGroupPage=yes
+DisableDirPage=yes
+DisableReadyPage=yes
 
 OutputDir=dist
 OutputBaseFilename=MinecraftServerLauncher-Setup
@@ -58,46 +60,57 @@ Name: "{autodesktop}\Minecraft Server Launcher";     Filename: "{app}\Minecraft 
 Filename: "{app}\Minecraft Server Launcher.exe"; Description: "Launch Minecraft Server Launcher"; Flags: nowait postinstall skipifsilent
 
 [Code]
-// ── Color constants (Windows BGR format) ──────────────────────────────────
+// ── Colors (Windows BGR: $BBGGRR) ─────────────────────────────────────────
 const
-  BG_DARK   = $0D1A0D;   // outer form & button strip
-  BG_CARD   = $141414;   // inner page panels
-  BG_INPUT  = $2D2D2D;   // text inputs, memos, listboxes
-  FG_WHITE  = $FFFFFF;   // headings
-  FG_TEXT   = $E0E0E0;   // body text
-  FG_DIM    = $555555;   // muted labels
+  BG      = $0D1A0D;   // deep dark green — matches banner
+  CARD    = $141414;   // inner panels
+  INP     = $272727;   // inputs / list backgrounds
+  WHITE   = $FFFFFF;
+  TEXT    = $DDDDDD;
+  DIM     = $4A4A4A;
+  GREEN   = $41FF00;   // #00FF41
 
-// ── Apply dark theme to every reachable wizard component ─────────────────
-procedure ApplyTheme;
+// Helper: darkens a label's parent panel if it is a TPanel
+procedure DarkLabel(Lbl: TNewStaticText);
 begin
-  // Main form chrome
-  WizardForm.Color                            := BG_DARK;
-  WizardForm.MainPanel.Color                  := BG_DARK;
-  WizardForm.Bevel1.Visible                   := False;
+  Lbl.Font.Color := TEXT;
+  Lbl.Font.Name  := 'Segoe UI';
+end;
 
-  // Page header band (title + description + small icon)
-  WizardForm.InnerPage.Color                  := BG_CARD;
-  WizardForm.PageNameLabel.Font.Color         := FG_WHITE;
-  WizardForm.PageNameLabel.Font.Name          := 'Segoe UI';
-  WizardForm.PageNameLabel.Font.Size          := 13;
-  WizardForm.PageDescriptionLabel.Font.Color  := FG_DIM;
-  WizardForm.PageDescriptionLabel.Font.Name   := 'Segoe UI';
+procedure ApplyTheme;
+var
+  I: Integer;
+begin
+  // ── Outer chrome ────────────────────────────────────────────────────────
+  WizardForm.Color           := BG;
+  WizardForm.Font.Color      := TEXT;
+  WizardForm.MainPanel.Color := BG;
+  WizardForm.Bevel1.Visible  := False;
 
-  // ── Select-directory page ─────────────────────────────────────────────
-  WizardForm.DirEdit.Color                    := BG_INPUT;
-  WizardForm.DirEdit.Font.Color               := FG_TEXT;
+  // ── Inner page area ──────────────────────────────────────────────────────
+  WizardForm.InnerPage.Color := CARD;
 
-  // ── Select-tasks page (desktop icon checkbox) ─────────────────────────
-  WizardForm.TasksList.Color                  := BG_CARD;
-  WizardForm.TasksList.Font.Color             := FG_TEXT;
+  // Page title & description
+  WizardForm.PageNameLabel.Font.Color        := WHITE;
+  WizardForm.PageNameLabel.Font.Name         := 'Segoe UI Semibold';
+  WizardForm.PageNameLabel.Font.Size         := 14;
+  WizardForm.PageDescriptionLabel.Font.Color := DIM;
+  WizardForm.PageDescriptionLabel.Font.Name  := 'Segoe UI';
 
-  // ── Ready-to-install summary ──────────────────────────────────────────
-  WizardForm.ReadyMemo.Color                  := BG_INPUT;
-  WizardForm.ReadyMemo.Font.Color             := FG_TEXT;
-  WizardForm.ReadyMemo.Font.Name              := 'Consolas';
-  WizardForm.ReadyMemo.Font.Size              := 9;
+  // ── Tasks page ───────────────────────────────────────────────────────────
+  WizardForm.SelectTasksLabel.Font.Color := TEXT;
+  WizardForm.SelectTasksLabel.Font.Name  := 'Segoe UI';
+  WizardForm.TasksList.Color             := INP;
+  WizardForm.TasksList.Font.Color        := TEXT;
+  WizardForm.TasksList.Font.Name         := 'Segoe UI';
+  WizardForm.TasksList.Font.Size         := 10;
 
-
+  // ── Installing page ───────────────────────────────────────────────────────
+  WizardForm.StatusLabel.Font.Color      := TEXT;
+  WizardForm.StatusLabel.Font.Name       := 'Segoe UI';
+  WizardForm.FilenameLabel.Font.Color    := DIM;
+  WizardForm.FilenameLabel.Font.Name     := 'Consolas';
+  WizardForm.FilenameLabel.Font.Size     := 8;
 end;
 
 procedure InitializeWizard;

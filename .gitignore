@@ -28,3 +28,6 @@ lib/
 Thumbs.db
 desktop.ini
 *.tmp
+
+# Code signing key (private — never commit)
+tools/codesign.pfx
