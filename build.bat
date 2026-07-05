@@ -237,7 +237,7 @@ for %%I in (
 
 if defined ISCC (
     echo.
-    echo [6/6] Building installer...
+    echo [6/7] Building installer...
     "%ISCC%" "%ROOT%installer.iss" /Q
     if not errorlevel 1 (
         echo [OK] Installer: %DIST%\MinecraftServerLauncher-Setup.exe
@@ -250,6 +250,52 @@ if defined ISCC (
     echo  Install from: https://jrsoftware.org/isinfo.php
 )
 
+:: -- Step 7: Sign the installer ----------------------------------
+echo.
+echo [7/7] Signing installer...
+
+set "SIGNTOOL="
+for %%S in (
+    "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+    "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
+    "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\signtool.exe"
+    "C:\Program Files (x86)\Windows Kits\10\bin\x64\signtool.exe"
+) do (
+    if not defined SIGNTOOL (
+        if exist "%%~S" set "SIGNTOOL=%%~S"
+    )
+)
+
+if not defined SIGNTOOL (
+    echo [SKIP] signtool.exe not found. Install Windows 10 SDK to enable signing.
+    goto :build_done
+)
+
+if not exist "%ROOT%tools\codesign.pfx" (
+    echo [SKIP] No certificate at tools\codesign.pfx.
+    goto :build_done
+)
+
+if "%CODESIGN_PASSWORD%"=="" (
+    echo [SKIP] Set the CODESIGN_PASSWORD environment variable to sign the installer.
+    echo        Example:  set CODESIGN_PASSWORD=yourpassword
+    goto :build_done
+)
+
+"%SIGNTOOL%" sign ^
+    /f "%ROOT%tools\codesign.pfx" ^
+    /p "%CODESIGN_PASSWORD%" ^
+    /tr http://timestamp.digicert.com ^
+    /td sha256 /fd sha256 ^
+    "%DIST%\MinecraftServerLauncher-Setup.exe"
+
+if not errorlevel 1 (
+    echo [OK] Installer signed successfully.
+) else (
+    echo [WARN] Signing failed - installer will trigger SmartScreen.
+)
+
+:build_done
 echo.
 echo  =============================================
 echo   BUILD COMPLETE
