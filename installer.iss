@@ -92,33 +92,18 @@ begin
 
   WizardForm.PageNameLabel.Font.Color        := WHITE;
   WizardForm.PageNameLabel.Font.Name         := 'Segoe UI Semibold';
-  WizardForm.PageNameLabel.Font.Size         := 14;
   WizardForm.PageDescriptionLabel.Font.Color := SUB;
   WizardForm.PageDescriptionLabel.Font.Name  := 'Segoe UI';
-  WizardForm.PageDescriptionLabel.Font.Size  := 9;
-  WizardForm.PageDescriptionLabel.Top :=
-    WizardForm.PageNameLabel.Top + WizardForm.PageNameLabel.Height + ScaleY(2);
 
-  // Welcome page — size 14 avoids overlap with WelcomeLabel2 below it
   WizardForm.WelcomeLabel1.Font.Color := WHITE;
   WizardForm.WelcomeLabel1.Font.Name  := 'Segoe UI Semibold';
-  WizardForm.WelcomeLabel1.Font.Size  := 14;
   WizardForm.WelcomeLabel2.Font.Color := SUB;
   WizardForm.WelcomeLabel2.Font.Name  := 'Segoe UI';
-  WizardForm.WelcomeLabel2.Font.Size  := 9;
-  // Reposition so WelcomeLabel2 sits below the resized WelcomeLabel1
-  WizardForm.WelcomeLabel2.Top :=
-    WizardForm.WelcomeLabel1.Top + WizardForm.WelcomeLabel1.Height + ScaleY(8);
 
-  // Finished page
   WizardForm.FinishedHeadingLabel.Font.Color := WHITE;
   WizardForm.FinishedHeadingLabel.Font.Name  := 'Segoe UI Semibold';
-  WizardForm.FinishedHeadingLabel.Font.Size  := 14;
   WizardForm.FinishedLabel.Font.Color        := SUB;
   WizardForm.FinishedLabel.Font.Name         := 'Segoe UI';
-  WizardForm.FinishedLabel.Font.Size         := 9;
-  WizardForm.FinishedLabel.Top :=
-    WizardForm.FinishedHeadingLabel.Top + WizardForm.FinishedHeadingLabel.Height + ScaleY(8);
 
   // Dir chooser page
   WizardForm.SelectDirLabel.Font.Color := SUB;
