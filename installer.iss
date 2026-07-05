@@ -59,19 +59,25 @@ Filename: "{app}\Minecraft Server Launcher.exe"; Description: "Launch Minecraft 
 [Code]
 
 // --------------------------------------------------------------------------
-// Palette  (Windows BGR format: $BBGGRR — bytes of #RRGGBB reversed)
+// SetWindowTheme — removes Windows visual theming from a control handle.
+// Required to make TPanel respect its Color property on Win 10/11.
+function SetWindowTheme(Wnd: HWND; SubApp: String; SubId: String): Integer;
+  external 'SetWindowTheme@uxtheme.dll stdcall';
+
+// --------------------------------------------------------------------------
+// Palette  (Windows BGR: $BBGGRR = #RRGGBB byte-reversed)
 const
   BG      = $0D1A0D;  // outer bg — dark green
   CARD    = $1A1A1A;  // inner page bg
-  SEP     = $333333;  // separator line
+  SEP     = $404040;  // separator line
   WHITE   = $FFFFFF;
   TEXT    = $F2F2F2;  // primary text
-  SUB     = $999999;  // secondary / subtitle text
-  DIM     = $555555;  // muted label
-  TRK_OFF = $484848;  // toggle track  off-state
-  THB_OFF = $888888;  // toggle thumb  off-state
-  TRK_ON  = $2A8800;  // toggle track  on-state  (medium green)
-  THB_ON  = $FFFFFF;  // toggle thumb  on-state
+  SUB     = $AAAAAA;  // subtitle text
+  DIM     = $666666;  // muted label
+  TRK_OFF = $505050;  // toggle track  off
+  THB_OFF = $909090;  // toggle thumb  off
+  TRK_ON  = $2E9900;  // toggle track  on  (green)
+  THB_ON  = $FFFFFF;  // toggle thumb  on
 
 // --------------------------------------------------------------------------
 // Global state
@@ -85,10 +91,16 @@ var
   StartOn:    Boolean;
 
 // --------------------------------------------------------------------------
-// Helpers — X/Y/W always in unscaled units; ScaleX/Y applied inside.
-// Do NOT pass SurfaceWidth here — it is already in screen pixels.
+// Helpers
 
-procedure PutLbl(Parent: TWinControl; X, Y, W, FSz, FClr: Integer;
+// Strip visual theme so TPanel.Color is actually rendered
+procedure NoTheme(P: TPanel);
+begin
+  SetWindowTheme(P.Handle, '', '');
+end;
+
+// Label; X/Y/W in unscaled units
+procedure PutLbl(Parent: TWinControl; X, Y, W, H, FSz, FClr: Integer;
                  const S, FName: String);
 var L: TNewStaticText;
 begin
@@ -97,6 +109,7 @@ begin
   L.Left        := ScaleX(X);
   L.Top         := ScaleY(Y);
   L.Width       := ScaleX(W);
+  L.Height      := ScaleY(H);
   L.AutoSize    := False;
   L.Caption     := S;
   L.Font.Name   := FName;
@@ -106,7 +119,7 @@ begin
   L.ParentColor := False;
 end;
 
-// Full-width 1-px separator; Y is unscaled
+// 1-px separator; Y unscaled
 procedure PutSep(Parent: TWinControl; Y: Integer);
 var P: TPanel;
 begin
@@ -114,10 +127,11 @@ begin
   P.Parent     := Parent;
   P.Left       := 0;
   P.Top        := ScaleY(Y);
-  P.Width      := Parent.ClientWidth;  // already in screen pixels — correct
+  P.Width      := Parent.ClientWidth;
   P.Height     := 1;
   P.Color      := SEP;
   P.BevelOuter := bvNone;
+  NoTheme(P);
 end;
 
 // Toggle switch; X/Y unscaled
@@ -133,6 +147,7 @@ begin
   Track.Height     := ScaleY(24);
   Track.Color      := TRK_OFF;
   Track.BevelOuter := bvNone;
+  NoTheme(Track);
 
   Thumb := TPanel.Create(WizardForm);
   Thumb.Parent     := Track;
@@ -142,6 +157,7 @@ begin
   Thumb.Height     := ScaleY(16);
   Thumb.Color      := THB_OFF;
   Thumb.BevelOuter := bvNone;
+  NoTheme(Thumb);
 
   ThumbOut := Thumb;
   Result   := Track;
@@ -179,10 +195,9 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Custom Configure page
-// Layout: toggle on the LEFT (X=0), labels to the RIGHT (X=54).
-// All values are unscaled units — ScaleX/Y are applied inside helpers.
-// Never use SurfaceWidth as an argument to PutLbl/MakeToggle.
+// Build the custom Configure page
+// Layout: toggle on LEFT (X=0), labels to its RIGHT (X=56).
+// All values passed to helpers are unscaled — ScaleX/Y applied inside.
 
 procedure BuildConfigPage;
 var Surf: TWinControl;
@@ -196,23 +211,23 @@ begin
   DeskTrack := MakeToggle(Surf, 0, 12, DeskThumb);
   DeskTrack.OnClick := @ToggleDesk;
   DeskThumb.OnClick := @ToggleDesk;
-  PutLbl(Surf, 56, 13, 255, 10, TEXT, 'Create a desktop shortcut', 'Segoe UI Semibold');
-  PutLbl(Surf, 56, 31, 255,  9, SUB,  'Adds a quick-access icon to your Desktop', 'Segoe UI');
+  PutLbl(Surf, 56, 11, 250, 18, 10, TEXT, 'Create a desktop shortcut',     'Segoe UI Semibold');
+  PutLbl(Surf, 56, 29, 250, 14,  9, SUB,  'Adds a quick-access icon to your Desktop', 'Segoe UI');
 
-  PutSep(Surf, 58);
+  PutSep(Surf, 55);
 
   // Row 2 — Launch on startup
-  StartTrack := MakeToggle(Surf, 0, 68, StartThumb);
+  StartTrack := MakeToggle(Surf, 0, 65, StartThumb);
   StartTrack.OnClick := @ToggleStart;
   StartThumb.OnClick := @ToggleStart;
-  PutLbl(Surf, 56, 69, 255, 10, TEXT, 'Launch on Windows startup', 'Segoe UI Semibold');
-  PutLbl(Surf, 56, 87, 255,  9, SUB,  'Open the launcher automatically when Windows starts', 'Segoe UI');
+  PutLbl(Surf, 56, 64, 250, 18, 10, TEXT, 'Launch on Windows startup',            'Segoe UI Semibold');
+  PutLbl(Surf, 56, 82, 250, 26,  9, SUB,  'Open the launcher automatically when Windows starts', 'Segoe UI');
 
-  PutSep(Surf, 114);
+  PutSep(Surf, 112);
 
-  // Install location (read-only, informational)
-  PutLbl(Surf, 0, 124, 310,  8, DIM,  'INSTALLS TO', 'Segoe UI');
-  PutLbl(Surf, 0, 138, 310,  9, SUB,
+  // Install location (read-only info)
+  PutLbl(Surf, 0, 120, 320, 13,  8, DIM,  'INSTALLS TO', 'Segoe UI');
+  PutLbl(Surf, 0, 133, 320, 26,  9, SUB,
          ExpandConstant('{localappdata}\Programs\Minecraft Server Launcher'),
          'Consolas');
 end;
