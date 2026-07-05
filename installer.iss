@@ -59,153 +59,163 @@ Filename: "{app}\Minecraft Server Launcher.exe"; Description: "Launch Minecraft 
 [Code]
 
 // --------------------------------------------------------------------------
-// Palette (Windows BGR: $BBGGRR)
+// Palette  (Windows BGR format: $BBGGRR = #RRGGBB reversed)
 const
-  BG      = $0D1A0D;   // deep dark green  — matches banner
-  CARD    = $141414;   // inner page bg
-  CARD2   = $1C1C1C;   // card face
-  BORDER  = $2E2E2E;   // card border
-  HOVER   = $252525;   // card hover bg
+  BG      = $0D1A0D;  // outer window bg
+  CARD    = $141414;  // inner page bg
+  SEP     = $282828;  // row separator line
   WHITE   = $FFFFFF;
-  TEXT    = $DDDDDD;
-  MUTED   = $666666;
-  DIM     = $4A4A4A;
-  GREEN   = $41FF00;   // #00FF41
+  TEXT    = $E0E0E0;
+  SUB     = $888888;  // subtitle / muted text
+  DIM     = $404040;  // very muted (section labels)
+  TRK_OFF = $363636;  // toggle track  - off
+  THB_OFF = $666666;  // toggle thumb  - off
+  TRK_ON  = $1A6600;  // toggle track  - on  (muted green)
+  THB_ON  = $FFFFFF;  // toggle thumb  - on
 
-// Custom config page vars 
+// --------------------------------------------------------------------------
+// Global state
 var
-  ConfigPage:    TWizardPage;
-  DeskChk:       TNewCheckBox;
-  DeskCardOuter: TPanel;
-  StartChk:      TNewCheckBox;
-  StartCardOuter:TPanel;
+  ConfigPage: TWizardPage;
+  DeskTrack:  TPanel;
+  DeskThumb:  TPanel;
+  DeskOn:     Boolean;
+  StartTrack: TPanel;
+  StartThumb: TPanel;
+  StartOn:    Boolean;
 
-// Helpers 
-
-function MakeCard(Parent: TWinControl; Top, H: Integer): TPanel;
-var
-  Inner: TPanel;
+// --------------------------------------------------------------------------
+// Put a label with explicit background colour
+procedure PutLbl(Parent: TWinControl; X, Y, W, FSz, FClr: Integer;
+                 const S, FName: String);
+var L: TNewStaticText;
 begin
-  // Outer = border colour
-  Result := TPanel.Create(WizardForm);
-  Result.Parent := Parent;
-  Result.Left   := 0;
-  Result.Top    := Top;
-  Result.Width  := Parent.ClientWidth;
-  Result.Height := ScaleY(H);
-  Result.Color  := BORDER;
-  Result.BevelOuter := bvNone;
-
-  // Inner = card face
-  Inner := TPanel.Create(WizardForm);
-  Inner.Parent := Result;
-  Inner.Left   := 1;
-  Inner.Top    := 1;
-  Inner.Width  := Result.Width  - 2;
-  Inner.Height := Result.Height - 2;
-  Inner.Color  := CARD2;
-  Inner.BevelOuter := bvNone;
+  L := TNewStaticText.Create(WizardForm);
+  L.Parent     := Parent;
+  L.Left       := ScaleX(X);   L.Top   := ScaleY(Y);
+  L.Width      := ScaleX(W);
+  L.Caption    := S;
+  L.Font.Name  := FName;
+  L.Font.Size  := FSz;
+  L.Font.Color := FClr;
+  L.Color      := CARD;
+  L.ParentColor := False;
 end;
 
-function InnerOf(Card: TPanel): TPanel;
+// 1-pixel horizontal separator line
+procedure PutSep(Parent: TWinControl; Y: Integer);
+var P: TPanel;
 begin
-  // Returns the inner face panel of a card created by MakeCard
-  Result := TPanel(Card.Controls[0]);
+  P := TPanel.Create(WizardForm);
+  P.Parent     := Parent;
+  P.Left       := 0;
+  P.Top        := ScaleY(Y);
+  P.Width      := Parent.ClientWidth;
+  P.Height     := 1;
+  P.Color      := SEP;
+  P.BevelOuter := bvNone;
 end;
 
-procedure AddLabel(Parent: TWinControl; X, Y, W: Integer;
-                   Txt, FontName: String; Sz, Clr: Integer);
-var
-  Lbl: TNewStaticText;
+// Build a toggle switch; returns track, writes thumb into ThumbOut
+function MakeToggle(Parent: TWinControl; X, Y: Integer;
+                    var ThumbOut: TPanel): TPanel;
+var Track, Thumb: TPanel;
 begin
-  Lbl := TNewStaticText.Create(WizardForm);
-  Lbl.Parent      := Parent;
-  Lbl.Left        := ScaleX(X);
-  Lbl.Top         := ScaleY(Y);
-  Lbl.Width       := ScaleX(W);
-  Lbl.Caption     := Txt;
-  Lbl.Font.Name   := FontName;
-  Lbl.Font.Size   := Sz;
-  Lbl.Font.Color  := Clr;
-  Lbl.Color       := CARD2;
-  Lbl.ParentColor := False;
+  Track := TPanel.Create(WizardForm);
+  Track.Parent     := Parent;
+  Track.Left       := ScaleX(X);
+  Track.Top        := ScaleY(Y);
+  Track.Width      := ScaleX(44);
+  Track.Height     := ScaleY(22);
+  Track.Color      := TRK_OFF;
+  Track.BevelOuter := bvNone;
+
+  Thumb := TPanel.Create(WizardForm);
+  Thumb.Parent     := Track;
+  Thumb.Left       := ScaleX(3);
+  Thumb.Top        := ScaleY(3);
+  Thumb.Width      := ScaleX(16);
+  Thumb.Height     := ScaleY(16);
+  Thumb.Color      := THB_OFF;
+  Thumb.BevelOuter := bvNone;
+
+  ThumbOut := Thumb;
+  Result   := Track;
 end;
 
-procedure AddCardCheck(Card: TPanel; var Chk: TNewCheckBox;
-                       Title, Subtitle: String);
-var
-  Face: TPanel;
+// --------------------------------------------------------------------------
+// Toggle click handlers
+
+procedure ToggleDesk(Sender: TObject);
 begin
-  Face := InnerOf(Card);
-
-  Chk := TNewCheckBox.Create(WizardForm);
-  Chk.Parent      := Face;
-  Chk.Left        := ScaleX(16);
-  Chk.Top         := ScaleY(11);
-  Chk.Width       := Face.Width - ScaleX(32);
-  Chk.Height      := ScaleY(18);
-  Chk.Caption     := Title;
-  Chk.Checked     := False;
-  Chk.Font.Name   := 'Segoe UI Semibold';
-  Chk.Font.Size   := 10;
-  Chk.Font.Color  := TEXT;
-  Chk.Color       := CARD2;
-  Chk.ParentColor := False;
-
-  AddLabel(Face, 38, 32, Face.Width - 50,
-           Subtitle, 'Segoe UI', 9, MUTED);
+  DeskOn := not DeskOn;
+  if DeskOn then begin
+    DeskThumb.Left  := ScaleX(25);
+    DeskThumb.Color := THB_ON;
+    DeskTrack.Color := TRK_ON;
+  end else begin
+    DeskThumb.Left  := ScaleX(3);
+    DeskThumb.Color := THB_OFF;
+    DeskTrack.Color := TRK_OFF;
+  end;
 end;
 
-// Build the custom configuration page 
+procedure ToggleStart(Sender: TObject);
+begin
+  StartOn := not StartOn;
+  if StartOn then begin
+    StartThumb.Left  := ScaleX(25);
+    StartThumb.Color := THB_ON;
+    StartTrack.Color := TRK_ON;
+  end else begin
+    StartThumb.Left  := ScaleX(3);
+    StartThumb.Color := THB_OFF;
+    StartTrack.Color := TRK_OFF;
+  end;
+end;
+
+// --------------------------------------------------------------------------
+// Build the custom Configure page
 
 procedure BuildConfigPage;
 var
-  Face:      TPanel;
-  SurfW:     Integer;
-  PathPanel: TPanel;
-  PathFace:  TPanel;
-  PathLbl:   TNewStaticText;
+  Surf: TWinControl;
+  SW:   Integer;
 begin
   ConfigPage := CreateCustomPage(wpWelcome,
     'Configure Installation',
-    'Choose your installation preferences before we begin');
+    'Customize your setup before we begin');
 
-  SurfW := ConfigPage.SurfaceWidth;
+  Surf := ConfigPage.Surface;
+  SW   := ConfigPage.SurfaceWidth;
 
-  // Card 1: Desktop Shortcut 
-  DeskCardOuter := MakeCard(ConfigPage.Surface, 10, 58);
-  AddCardCheck(DeskCardOuter, DeskChk,
-    'Create a desktop shortcut',
-    'Adds a shortcut to your Desktop for quick access');
+  // Row 1 -- Desktop shortcut
+  PutLbl(Surf,  0, 12, SW-62, 10, TEXT,  'Create a desktop shortcut', 'Segoe UI Semibold');
+  PutLbl(Surf,  0, 30, SW-62,  9, SUB,   'Adds a quick-access icon to your Desktop', 'Segoe UI');
+  DeskTrack := MakeToggle(Surf, SW-52, 13, DeskThumb);
+  DeskTrack.OnClick := @ToggleDesk;
+  DeskThumb.OnClick := @ToggleDesk;
 
-  // Card 2: Launch on system startup 
-  StartCardOuter := MakeCard(ConfigPage.Surface, ScaleY(10) + DeskCardOuter.Height + ScaleY(10), 58);
-  AddCardCheck(StartCardOuter, StartChk,
-    'Launch on Windows startup',
-    'Automatically open the launcher when Windows starts');
+  PutSep(Surf, 56);
 
-  // Install location (read-only, informational) 
-  AddLabel(ConfigPage.Surface, 0, 148, SurfW,
-           'INSTALL LOCATION', 'Segoe UI', 8, DIM);
+  // Row 2 -- Launch on startup
+  PutLbl(Surf,  0, 66, SW-62, 10, TEXT,  'Launch on Windows startup', 'Segoe UI Semibold');
+  PutLbl(Surf,  0, 84, SW-62,  9, SUB,   'Open the launcher automatically when Windows starts', 'Segoe UI');
+  StartTrack := MakeToggle(Surf, SW-52, 67, StartThumb);
+  StartTrack.OnClick := @ToggleStart;
+  StartThumb.OnClick := @ToggleStart;
 
-  PathPanel := MakeCard(ConfigPage.Surface, ScaleY(162), 36);
-  Face      := InnerOf(PathPanel);
-  PathFace  := Face;
+  PutSep(Surf, 110);
 
-  PathLbl := TNewStaticText.Create(WizardForm);
-  PathLbl.Parent      := PathFace;
-  PathLbl.Left        := ScaleX(14);
-  PathLbl.Top         := ScaleY(10);
-  PathLbl.Width       := PathFace.Width - ScaleX(28);
-  PathLbl.Caption     := ExpandConstant('{localappdata}\Programs\Minecraft Server Launcher');
-  PathLbl.Font.Name   := 'Consolas';
-  PathLbl.Font.Size   := 9;
-  PathLbl.Font.Color  := MUTED;
-  PathLbl.Color       := CARD2;
-  PathLbl.ParentColor := False;
+  // Install location (read-only info)
+  PutLbl(Surf, 0, 118, SW,  8, DIM,  'INSTALLS TO', 'Segoe UI');
+  PutLbl(Surf, 0, 132, SW,  9, SUB,
+         ExpandConstant('{localappdata}\Programs\Minecraft Server Launcher'),
+         'Consolas');
 end;
 
-// Global dark theme 
+// --------------------------------------------------------------------------
+// Apply dark theme to all wizard controls
 
 procedure ApplyTheme;
 begin
@@ -213,52 +223,64 @@ begin
   WizardForm.Font.Color      := TEXT;
   WizardForm.MainPanel.Color := BG;
   WizardForm.Bevel1.Visible  := False;
-
   WizardForm.InnerPage.Color := CARD;
 
+  // Header labels (inner pages)
   WizardForm.PageNameLabel.Font.Color        := WHITE;
   WizardForm.PageNameLabel.Font.Name         := 'Segoe UI Semibold';
   WizardForm.PageNameLabel.Font.Size         := 14;
   WizardForm.PageDescriptionLabel.Font.Color := DIM;
   WizardForm.PageDescriptionLabel.Font.Name  := 'Segoe UI';
 
-  WizardForm.StatusLabel.Font.Color    := TEXT;
-  WizardForm.StatusLabel.Font.Name     := 'Segoe UI';
-  WizardForm.FilenameLabel.Font.Color  := MUTED;
-  WizardForm.FilenameLabel.Font.Name   := 'Consolas';
-  WizardForm.FilenameLabel.Font.Size   := 8;
+  // Welcome page right-panel text
+  WizardForm.WelcomeLabel1.Font.Color := WHITE;
+  WizardForm.WelcomeLabel1.Font.Name  := 'Segoe UI Semibold';
+  WizardForm.WelcomeLabel1.Font.Size  := 18;
+  WizardForm.WelcomeLabel2.Font.Color := SUB;
+  WizardForm.WelcomeLabel2.Font.Name  := 'Segoe UI';
+  WizardForm.WelcomeLabel2.Font.Size  := 9;
+
+  // Finish page right-panel text
+  WizardForm.FinishedHeadingLabel.Font.Color := WHITE;
+  WizardForm.FinishedHeadingLabel.Font.Name  := 'Segoe UI Semibold';
+  WizardForm.FinishedHeadingLabel.Font.Size  := 18;
+  WizardForm.FinishedLabel.Font.Color        := SUB;
+  WizardForm.FinishedLabel.Font.Name         := 'Segoe UI';
+  WizardForm.FinishedLabel.Font.Size         := 9;
+
+  // Installing page status
+  WizardForm.StatusLabel.Font.Color   := TEXT;
+  WizardForm.StatusLabel.Font.Name    := 'Segoe UI';
+  WizardForm.FilenameLabel.Font.Color := DIM;
+  WizardForm.FilenameLabel.Font.Name  := 'Consolas';
+  WizardForm.FilenameLabel.Font.Size  := 8;
 end;
 
-// Skip the stock SelectTasks page 
+// --------------------------------------------------------------------------
+// Skip the built-in SelectTasks page (we have our own)
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := (PageID = wpSelectTasks);
 end;
 
-// Sync our custom checkboxes → actual tasks before install 
+// Sync toggle state -> actual task selection before install begins
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
-  if CurPageID = ConfigPage.ID then begin
-    // Desktop shortcut task
-    WizardForm.TasksList.Checked[0] := DeskChk.Checked;
-
-    // Startup registry entry — write/delete in CurStepChanged instead
-    // (stored in DeskChk / StartChk for access later)
-  end;
+  if CurPageID = ConfigPage.ID then
+    WizardForm.TasksList.Checked[0] := DeskOn;
 end;
 
-// Post-install: handle startup registry entry 
+// Post-install: write or clear startup registry entry
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  Key: String;
+var Key: String;
 begin
   if CurStep = ssDone then begin
     Key := 'Software\Microsoft\Windows\CurrentVersion\Run';
-    if StartChk.Checked then
+    if StartOn then
       RegWriteStringValue(HKCU, Key, 'MinecraftServerLauncher',
         ExpandConstant('"{app}\Minecraft Server Launcher.exe"'))
     else
@@ -266,7 +288,7 @@ begin
   end;
 end;
 
-// Entry points 
+// --------------------------------------------------------------------------
 
 procedure InitializeWizard;
 begin
