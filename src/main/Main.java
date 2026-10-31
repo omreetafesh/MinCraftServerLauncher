@@ -2,8 +2,13 @@ package main;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Rectangle2D;
+import javafx.scene.Cursor;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.input.MouseEvent;
+import javafx.stage.Screen;
+import java.util.function.BooleanSupplier;
 import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 import javafx.scene.paint.Color;
@@ -19,172 +24,83 @@ public class Main extends Application {
         LauncherController controller = loader.getController();
 
         primaryStage.initStyle(StageStyle.UNDECORATED);
-        primaryStage.setTitle("Minecraft Server Dashboard");
+        primaryStage.setTitle("Minecraft Server Launcher");
 
         for (int size : new int[]{16, 32, 48, 64, 128, 256})
-            primaryStage.getIcons().add(bufToFx(drawGrassBlock(size)));
+            primaryStage.getIcons().add(bufToFx(AppIcon.draw(size)));
 
-        primaryStage.setScene(new Scene(root, 1150, 720));
+        // Fit the window on small screens (e.g. 1366x768 laptops) instead of spilling under the taskbar
+        Rectangle2D screen = Screen.getPrimary().getVisualBounds();
+        double w = Math.min(1240, screen.getWidth()), h = Math.min(780, screen.getHeight());
+        Scene scene = new Scene(root, w, h);
+        primaryStage.setScene(scene);
+        primaryStage.setMinWidth(Math.min(MIN_W, screen.getWidth()));
+        primaryStage.setMinHeight(Math.min(MIN_H, screen.getHeight()));
         primaryStage.setOnCloseRequest(event -> {
             event.consume();
             controller.handleWindowClose();
         });
 
         controller.setStage(primaryStage);
+        enableEdgeResize(primaryStage, scene, controller::isWindowMaximized);
         primaryStage.show();
+        root.requestFocus(); // nothing focused at start, so no input shows a focus ring
     }
 
-    // ── Shared icon renderer ─────────────────────────────────────────
+    // ── Resizing an undecorated window ───────────────────────────────
+    // With StageStyle.UNDECORATED the OS draws no border, so there was nothing to grab to resize.
+    // These filters turn a thin band along every edge/corner into resize handles.
 
-    static java.awt.image.BufferedImage drawGrassBlock(int S) {
-        java.awt.image.BufferedImage buf =
-            new java.awt.image.BufferedImage(S, S, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-        java.awt.Graphics2D g = buf.createGraphics();
-        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
-                           java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
-                           java.awt.RenderingHints.VALUE_RENDER_QUALITY);
-        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                           java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+    private static final int EDGE = 6, MIN_W = 1070, MIN_H = 560; // MIN_W: the title bar's buttons need ~1050 px
 
-        float sc = S / 256f;
+    static void enableEdgeResize(Stage stage, Scene scene, BooleanSupplier isMaximized) {
+        Cursor[] mode = {Cursor.DEFAULT};
+        double[] start = new double[6]; // mouse x, y, stage x, y, w, h
 
-        // ── Background ───────────────────────────────────────────────
-        // Outer dark glow ring (subtle)
-        for (int r = 8; r > 0; r--) {
-            int alpha = (int)(18 * (9 - r) / 8f);
-            g.setColor(new java.awt.Color(0, 200, 60, alpha));
-            g.fillRoundRect(-(int)(r*sc), -(int)(r*sc),
-                             S + (int)(2*r*sc), S + (int)(2*r*sc),
-                             (int)(48*sc), (int)(48*sc));
-        }
-        // Main dark rounded background
-        g.setPaint(new java.awt.GradientPaint(0, 0, new java.awt.Color(0x242424),
-                                               0, S, new java.awt.Color(0x141414)));
-        g.fillRoundRect(0, 0, S, S, (int)(44*sc), (int)(44*sc));
-
-        // ── Isometric cube vertices (at 256-pixel scale) ─────────────
-        //   Top face (rhombus):  N, E, S, W
-        //   Left face (parallelogram):  W, S, BC, BL
-        //   Right face (parallelogram): S, E, BR, BC
-        int nx = p(128,sc), ny = p(34,sc);
-        int ex = p(212,sc), ey = p(78,sc);
-        int sx = p(128,sc), sy = p(122,sc);
-        int wx = p(44,sc),  wy = p(78,sc);
-        int blx = p(44,sc),  bly = p(166,sc);   // BL = W + (0, 88)
-        int bcx = p(128,sc), bcy = p(210,sc);   // BC = S + (0, 88)
-        int brx = p(212,sc), bry = p(166,sc);   // BR = E + (0, 88)
-
-        int[] topX  = {nx, ex, sx, wx};
-        int[] topY  = {ny, ey, sy, wy};
-        int[] leftX = {wx, sx, bcx, blx};
-        int[] leftY = {wy, sy, bcy, bly};
-        int[] rightX = {sx, ex, brx, bcx};
-        int[] rightY = {sy, ey, bry, bcy};
-
-        // ── RIGHT face — shadow side ─────────────────────────────────
-        g.setPaint(new java.awt.GradientPaint(
-            (sx+ex)/2f, sy, new java.awt.Color(0x5e3d22),
-            (sx+ex)/2f, bcy, new java.awt.Color(0x301c0d)));
-        g.fillPolygon(rightX, rightY, 4);
-
-        // Dirt detail marks — right face
-        g.setColor(rgba(0x1a0b04, 110));
-        dirtMark(g, sc, 145,136,  7); dirtMark(g, sc, 168,122, 5);
-        dirtMark(g, sc, 155,158,  6); dirtMark(g, sc, 178,148, 4);
-        dirtMark(g, sc, 148,174,  5); dirtMark(g, sc, 170,168, 6);
-        dirtMark(g, sc, 140,190,  4); dirtMark(g, sc, 162,188, 5);
-
-        // ── LEFT face — lit side ─────────────────────────────────────
-        g.setPaint(new java.awt.GradientPaint(
-            (wx+sx)/2f, wy, new java.awt.Color(0xb07848),
-            (wx+sx)/2f, bcy, new java.awt.Color(0x7a5030)));
-        g.fillPolygon(leftX, leftY, 4);
-
-        // Dirt detail marks — left face
-        g.setColor(rgba(0x3e2010, 110));
-        dirtMark(g, sc, 72,132, 7);  dirtMark(g, sc, 96,148, 5);
-        dirtMark(g, sc, 64,163, 6);  dirtMark(g, sc, 104,166, 4);
-        dirtMark(g, sc, 76,178, 5);  dirtMark(g, sc, 110,182, 6);
-        dirtMark(g, sc, 58,188, 4);  dirtMark(g, sc, 90,196, 5);
-
-        // ── TOP face — grass ─────────────────────────────────────────
-        // Base grass fill
-        g.setPaint(new java.awt.GradientPaint(
-            nx, ny, new java.awt.Color(0x7ed94e),
-            sx, sy, new java.awt.Color(0x58ae2a)));
-        g.fillPolygon(topX, topY, 4);
-
-        // Lighter highlight blotches on top (grass texture)
-        g.setColor(rgba(0x9fe870, 80));
-        blotch(g, sc, 90, 58,  18, 10);
-        blotch(g, sc, 138, 52, 14,  8);
-        blotch(g, sc, 160, 72, 16,  9);
-        blotch(g, sc, 110, 90, 20, 10);
-        g.setColor(rgba(0x4a9020, 70));
-        blotch(g, sc, 75,  72, 14,  8);
-        blotch(g, sc, 150, 60, 12,  7);
-        blotch(g, sc, 120, 100, 16, 8);
-
-        // ── Grass side strip on left face top ───────────────────────
-        int gH = p(16, sc);
-        g.setColor(rgba(0x4e9224, 200));
-        g.fillPolygon(
-            new int[]{wx, sx, sx, wx},
-            new int[]{wy, sy, sy+gH, wy+gH}, 4);
-        // thin lighter edge on top of grass strip
-        g.setColor(rgba(0x78cc44, 100));
-        g.setStroke(new java.awt.BasicStroke(Math.max(1f, 1.5f*sc)));
-        g.drawLine(wx, wy, sx, sy);
-
-        // ── Grass side strip on right face top ──────────────────────
-        g.setColor(rgba(0x3c7018, 200));
-        g.fillPolygon(
-            new int[]{sx, ex, ex, sx},
-            new int[]{sy, ey, ey+gH, sy+gH}, 4);
-        g.setColor(rgba(0x58a030, 80));
-        g.drawLine(sx, sy, ex, ey);
-
-        // ── Edge outlines ────────────────────────────────────────────
-        float sw = Math.max(1.5f, 2.8f*sc);
-        g.setColor(rgba(0x000000, 210));
-        g.setStroke(new java.awt.BasicStroke(sw,
-            java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
-        // Top face
-        g.drawPolygon(topX, topY, 4);
-        // Vertical pillars
-        g.drawLine(wx, wy, blx, bly);
-        g.drawLine(ex, ey, brx, bry);
-        g.drawLine(sx, sy, bcx, bcy);
-        // Bottom edges
-        g.drawLine(blx, bly, bcx, bcy);
-        g.drawLine(brx, bry, bcx, bcy);
-
-        // ── Subtle green glow border around background ───────────────
-        g.setStroke(new java.awt.BasicStroke(Math.max(1.5f, 4f*sc)));
-        g.setColor(rgba(0x00ff41, 55));
-        g.drawRoundRect(p(4,sc), p(4,sc), S-p(8,sc), S-p(8,sc),
-                        p(38,sc), p(38,sc));
-
-        g.dispose();
-        return buf;
+        scene.addEventFilter(MouseEvent.MOUSE_MOVED, e -> {
+            mode[0] = isMaximized.getAsBoolean() ? Cursor.DEFAULT
+                    : edgeCursor(e.getSceneX(), e.getSceneY(), scene.getWidth(), scene.getHeight());
+            scene.setCursor(mode[0]);
+        });
+        scene.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
+            if (mode[0] == Cursor.DEFAULT || !e.isPrimaryButtonDown()) return;
+            start[0] = e.getScreenX(); start[1] = e.getScreenY();
+            start[2] = stage.getX();   start[3] = stage.getY();
+            start[4] = stage.getWidth(); start[5] = stage.getHeight();
+            e.consume(); // don't let the title bar start a window drag
+        });
+        scene.addEventFilter(MouseEvent.MOUSE_DRAGGED, e -> {
+            if (mode[0] == Cursor.DEFAULT) return;
+            Cursor c = mode[0];
+            double dx = e.getScreenX() - start[0], dy = e.getScreenY() - start[1];
+            double minW = stage.getMinWidth(), minH = stage.getMinHeight();
+            if (c == Cursor.E_RESIZE || c == Cursor.NE_RESIZE || c == Cursor.SE_RESIZE)
+                stage.setWidth(Math.max(minW, start[4] + dx));
+            if (c == Cursor.W_RESIZE || c == Cursor.NW_RESIZE || c == Cursor.SW_RESIZE) {
+                double nw = Math.max(minW, start[4] - dx);
+                stage.setX(start[2] + start[4] - nw); stage.setWidth(nw);
+            }
+            if (c == Cursor.S_RESIZE || c == Cursor.SE_RESIZE || c == Cursor.SW_RESIZE)
+                stage.setHeight(Math.max(minH, start[5] + dy));
+            if (c == Cursor.N_RESIZE || c == Cursor.NE_RESIZE || c == Cursor.NW_RESIZE) {
+                double nh = Math.max(minH, start[5] - dy);
+                stage.setY(start[3] + start[5] - nh); stage.setHeight(nh);
+            }
+            e.consume();
+        });
     }
 
-    private static void dirtMark(java.awt.Graphics2D g, float sc, int bx, int by, int size) {
-        g.fillRect(p(bx,sc), p(by,sc), p(size,sc), p(size,sc));
-    }
-
-    private static void blotch(java.awt.Graphics2D g, float sc,
-                                int bx, int by, int w, int h) {
-        g.fillOval(p(bx,sc), p(by,sc), p(w,sc), p(h,sc));
-    }
-
-    private static int p(int v, float sc) {
-        return Math.round(v * sc);
-    }
-
-    private static java.awt.Color rgba(int hex, int a) {
-        return new java.awt.Color((hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF, a);
+    private static Cursor edgeCursor(double x, double y, double w, double h) {
+        boolean l = x < EDGE, r = x > w - EDGE, t = y < EDGE, b = y > h - EDGE;
+        if (t && l) return Cursor.NW_RESIZE;
+        if (t && r) return Cursor.NE_RESIZE;
+        if (b && l) return Cursor.SW_RESIZE;
+        if (b && r) return Cursor.SE_RESIZE;
+        if (l) return Cursor.W_RESIZE;
+        if (r) return Cursor.E_RESIZE;
+        if (t) return Cursor.N_RESIZE;
+        if (b) return Cursor.S_RESIZE;
+        return Cursor.DEFAULT;
     }
 
     // ── Convert AWT BufferedImage → JavaFX WritableImage ─────────────

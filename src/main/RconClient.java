@@ -36,7 +36,8 @@ public class RconClient {
         }
     }
 
-    public String sendCommand(String command) throws IOException {
+    // synchronized: two quick commands from different threads would otherwise interleave on the socket
+    public synchronized String sendCommand(String command) throws IOException {
         if (!isConnected()) throw new IOException("Not connected to RCON.");
         int id = nextId++;
         sendPacket(id, TYPE_COMMAND, command);

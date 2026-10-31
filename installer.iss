@@ -1,6 +1,11 @@
+; build.bat passes its APP_VERSION as /DAppVer; this default is for compiling the script by hand
+#ifndef AppVer
+  #define AppVer "1.1.0"
+#endif
+
 [Setup]
 AppName=Minecraft Server Launcher
-AppVersion=1.0.0
+AppVersion={#AppVer}
 AppPublisher=Omree
 AppPublisherURL=https://github.com/omreetafesh/MinCraftServerLauncher
 AppSupportURL=https://github.com/omreetafesh/MinCraftServerLauncher/issues
@@ -9,15 +14,21 @@ AppCopyright=Copyright (C) 2025 Omree
 DefaultDirName={localappdata}\Programs\Minecraft Server Launcher
 DefaultGroupName=Minecraft Tools
 DisableProgramGroupPage=yes
+DisableWelcomePage=no
 DisableReadyPage=yes
 
 OutputDir=dist
 OutputBaseFilename=MinecraftServerLauncher-Setup
 SetupIconFile=dist\icon.ico
 
-WizardStyle=modern
-WizardImageFile=dist\wizard_banner.bmp
-WizardSmallImageFile=dist\wizard_icon.bmp
+; Dark "midnight / emerald" look to match the launcher (needs Inno Setup 6.7+):
+; the launcher's aurora as the page background, with a transparent logo banner and header icon on top.
+; All art comes from tools\MakeWizardArt.java; several sizes each so it stays sharp at any DPI.
+WizardStyle=modern dark hidebevels includetitlebar
+WizardBackColor=#0b0e14
+WizardBackImageFile=dist\wizard_back_*.png
+WizardImageFile=dist\wizard_image_*.png
+WizardSmallImageFile=dist\wizard_icon_*.png
 WizardSizePercent=130
 
 ; No solid compression — allows DisableReadyPage to be respected
@@ -35,7 +46,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 WelcomeLabel1=Welcome to%nMinecraft Server Launcher
-WelcomeLabel2=This wizard will install Minecraft Server Launcher {#SetupSetting('AppVersion')} on your computer.%n%nManage Minecraft Java Edition servers with a modern dashboard — live console, performance charts, RCON support, and more.%n%nA bundled Java runtime is included. No existing Java installation is required.%n%nClick Next to install.
+WelcomeLabel2=This wizard will install Minecraft Server Launcher {#SetupSetting('AppVersion')} on your computer.%n%nManage Minecraft Java Edition servers with a modern dashboard — live console, performance charts, RCON support, and more.%n%nThe launcher brings its own runtime. Your Minecraft server needs Java 21 or newer — the launcher finds it for you, or tells you where to get it.
 FinishedHeadingLabel=You're all set!
 FinishedLabel=Minecraft Server Launcher {#SetupSetting('AppVersion')} has been installed.%n%nLaunch it from the Start Menu or the desktop shortcut.
 
@@ -54,10 +65,6 @@ Filename: "{app}\Minecraft Server Launcher.exe"; Description: "Launch Minecraft 
 
 [Code]
 
-function DwmSetWindowAttribute(Wnd: HWND; Attr: DWORD;
-                                var Value: DWORD; Size: DWORD): HRESULT;
-  external 'DwmSetWindowAttribute@dwmapi.dll stdcall';
-
 // PostMessage lets us auto-click the Install button without re-entering VCL
 function PostMessage(hWnd: HWND; Msg: DWORD; wParam: Integer; lParam: Integer): Integer;
   external 'PostMessageW@user32.dll stdcall';
@@ -66,57 +73,21 @@ const
   BM_CLICK = $00F5;
 
 // --------------------------------------------------------------------------
-// Palette (Windows BGR: $BBGGRR)
-// Outer BG matches the banner's darkest edge so there's no colour clash
-const
-  BG    = $0A120A;  // dark green — identical to banner edge
-  CARD  = $181E18;  // slightly lighter green-dark for inner page
-  WHITE = $FFFFFF;
-  TEXT  = $F0F0F0;
-  SUB   = $B0B0B0;
-  DIM   = $606060;
-
-// --------------------------------------------------------------------------
+// Colors come from WizardStyle / WizardBackColor above (a custom style ignores colors set here);
+// this only sets the app's fonts.
 procedure ApplyTheme;
-var Dark: DWORD;
 begin
-  // Request dark title bar from Windows (Win10 v2004+ / Win11)
-  Dark := 1;
-  DwmSetWindowAttribute(WizardForm.Handle, 20, Dark, 4);
-
-  WizardForm.Color           := BG;
-  WizardForm.Font.Color      := TEXT;
-  WizardForm.MainPanel.Color := BG;
-  WizardForm.Bevel1.Visible  := False;
-  WizardForm.InnerPage.Color := CARD;
-
-  WizardForm.PageNameLabel.Font.Color        := WHITE;
-  WizardForm.PageNameLabel.Font.Name         := 'Segoe UI Semibold';
-  WizardForm.PageDescriptionLabel.Font.Color := SUB;
-  WizardForm.PageDescriptionLabel.Font.Name  := 'Segoe UI';
-
-  WizardForm.WelcomeLabel1.Font.Color := WHITE;
-  WizardForm.WelcomeLabel1.Font.Name  := 'Segoe UI Semibold';
-  WizardForm.WelcomeLabel2.Font.Color := SUB;
-  WizardForm.WelcomeLabel2.Font.Name  := 'Segoe UI';
-
-  WizardForm.FinishedHeadingLabel.Font.Color := WHITE;
-  WizardForm.FinishedHeadingLabel.Font.Name  := 'Segoe UI Semibold';
-  WizardForm.FinishedLabel.Font.Color        := SUB;
-  WizardForm.FinishedLabel.Font.Name         := 'Segoe UI';
-
-  // Dir chooser page
-  WizardForm.SelectDirLabel.Font.Color := SUB;
-  WizardForm.SelectDirLabel.Font.Name  := 'Segoe UI';
-  WizardForm.DirEdit.Color             := $282E28;
-  WizardForm.DirEdit.Font.Color        := TEXT;
-  WizardForm.DirEdit.Font.Name         := 'Segoe UI';
-
-  WizardForm.StatusLabel.Font.Color   := TEXT;
-  WizardForm.StatusLabel.Font.Name    := 'Segoe UI';
-  WizardForm.FilenameLabel.Font.Color := DIM;
-  WizardForm.FilenameLabel.Font.Name  := 'Consolas';
-  WizardForm.FilenameLabel.Font.Size  := 8;
+  WizardForm.PageNameLabel.Font.Name        := 'Segoe UI Semibold';
+  WizardForm.PageDescriptionLabel.Font.Name := 'Segoe UI';
+  WizardForm.WelcomeLabel1.Font.Name        := 'Segoe UI Semibold';
+  WizardForm.WelcomeLabel2.Font.Name        := 'Segoe UI';
+  WizardForm.FinishedHeadingLabel.Font.Name := 'Segoe UI Semibold';
+  WizardForm.FinishedLabel.Font.Name        := 'Segoe UI';
+  WizardForm.SelectDirLabel.Font.Name       := 'Segoe UI';
+  WizardForm.DirEdit.Font.Name              := 'Segoe UI';
+  WizardForm.StatusLabel.Font.Name          := 'Segoe UI';
+  WizardForm.FilenameLabel.Font.Name        := 'Consolas';
+  WizardForm.FilenameLabel.Font.Size        := 8;
 end;
 
 // --------------------------------------------------------------------------

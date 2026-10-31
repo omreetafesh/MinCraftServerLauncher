@@ -13,8 +13,12 @@ Built with JavaFX 26 and packaged as a standalone Windows app — **no Java inst
 - **RCON support** — send commands to a running server remotely
 - **Server properties editor** — edit `server.properties` with a GUI
 - **Multi-profile support** — manage multiple server configurations
-- **Automatic JAR downloader** — fetch the latest Vanilla / Paper / Purpur server JARs
-- **Custom window chrome** — no OS title bar, fully integrated controls
+- **Automatic JAR downloader** — fetch Paper / Vanilla / Fabric server JARs (checksum-verified)
+- **Safe backups** — pauses autosave while zipping; includes the Nether and End; one-click restore
+- **Crash recovery & scheduled restarts** — with a 1-minute in-game warning
+- **First-run help** — EULA prompt, Java auto-detection, and clear errors instead of silent failures
+- **Custom window chrome** — no OS title bar, resizable from any edge, fully integrated controls
+- **Ambient motion** — a glow that follows the mouse under glass panels, card spotlights, a drifting aurora and smooth transitions (can be turned off in Settings → Performance)
 
 ---
 
@@ -25,7 +29,10 @@ Built with JavaFX 26 and packaged as a standalone Windows app — **no Java inst
 3. Run the installer — it puts a shortcut on your Start Menu (and optionally Desktop)
 4. Launch **Minecraft Server Launcher** and point it at your server folder
 
-No Java required — the runtime is bundled inside the installer.
+The launcher itself needs no Java — its runtime is bundled inside the installer.
+The **Minecraft server** it runs does need Java (Java 21+ for current versions, from
+[adoptium.net](https://adoptium.net)). The launcher finds it automatically, or you can pick one in
+Settings → Performance → Java.
 
 ---
 
@@ -37,7 +44,7 @@ No Java required — the runtime is bundled inside the installer.
 |------|-------------|
 | JDK 26 | [adoptium.net](https://adoptium.net) or [Oracle](https://www.oracle.com/java/technologies/downloads/) |
 | JavaFX SDK 26 | [gluonhq.com/products/javafx](https://gluonhq.com/products/javafx/) |
-| Inno Setup 6 *(optional, for installer)* | [jrsoftware.org/isinfo](https://jrsoftware.org/isinfo.php) |
+| Inno Setup 6.7+ *(optional, for installer)* | [jrsoftware.org/isinfo](https://jrsoftware.org/isinfo.php) |
 
 ### Steps
 
@@ -66,13 +73,18 @@ src/
   main/
     Main.java               JavaFX entry point, window setup, icon rendering
     AppStarter.java         bootstrap launcher (needed by jpackage)
-    LauncherController.java all UI logic (1500+ lines)
+    LauncherController.java all UI logic
     RconClient.java         raw TCP RCON protocol implementation
+    AppIcon.java            draws the app logo (window, tray, installer)
+    Icon.java               vector UI icons
+    Effects.java            cursor glow, card spotlight and aurora background
+    Motion.java             shared animation helpers
     Launcher.fxml           scene layout
     style.css               dark theme
 
 tools/
   MakeIcon.java             generates icon.ico at build time (no external tools needed)
+  MakeWizardArt.java        generates the installer's background, banner and header art
 
 build.bat                   one-click build script
 installer.iss               Inno Setup installer script
