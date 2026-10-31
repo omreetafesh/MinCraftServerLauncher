@@ -13,7 +13,7 @@ echo.
 ::  CONFIGURATION  (edit if auto-detection fails)
 :: =============================================================
 set "APP_NAME=Minecraft Server Launcher"
-set "APP_VERSION=1.0.0"
+set "APP_VERSION=1.1.0"
 set "APP_VENDOR=Omree"
 
 :: Leave blank to auto-detect
@@ -113,7 +113,8 @@ echo.
 echo [0/4] Generating icon.ico...
 set "ICO_FLAG="
 
-"%JAVA_HOME%\bin\javac" -d "%TOOLS%\bin" "%TOOLS%\MakeIcon.java" >nul 2>&1
+:: AppIcon.java is the app's own logo code, so the .ico always matches the running app
+"%JAVA_HOME%\bin\javac" -d "%TOOLS%\bin" "%TOOLS%\MakeIcon.java" "%ROOT%src\main\AppIcon.java" >nul 2>&1
 if errorlevel 1 goto :skip_icon
 
 "%JAVA_HOME%\bin\java" -cp "%TOOLS%\bin" MakeIcon "%DIST%\icon.ico" >nul 2>&1
@@ -133,8 +134,12 @@ echo [1/4] Compiling Java sources...
 
 "%JAVA_HOME%\bin\javac" --module-path "%FX%" -d "%OUT%\MinCraftServerLauncher" ^
     "%SRC%\module-info.java" ^
+    "%SRC%\main\AppIcon.java" ^
     "%SRC%\main\AppStarter.java" ^
+    "%SRC%\main\Effects.java" ^
+    "%SRC%\main\Icon.java" ^
     "%SRC%\main\LauncherController.java" ^
+    "%SRC%\main\Motion.java" ^
     "%SRC%\main\Main.java" ^
     "%SRC%\main\RconClient.java"
 
@@ -214,8 +219,8 @@ echo [OK] Native libraries copied.
 :: -- Step 5: Generate wizard artwork ---------------------------
 echo.
 echo [5/5] Generating installer artwork...
-"%JAVA_HOME%\bin\javac" -d "%TOOLS%\bin" "%TOOLS%\MakeWizardArt.java" >nul 2>&1
-"%JAVA_HOME%\bin\java"  -cp "%TOOLS%\bin" MakeWizardArt "%DIST%" >nul 2>&1
+"%JAVA_HOME%\bin\javac" -d "%TOOLS%\bin" "%TOOLS%\MakeWizardArt.java" "%ROOT%src\main\AppIcon.java" >nul 2>&1
+"%JAVA_HOME%\bin\java"  -cp "%TOOLS%\bin" MakeWizardArt "%DIST%" "%APP_VERSION%" >nul 2>&1
 if errorlevel 1 (
     echo [WARN] Wizard art generation failed - installer will use defaults.
 ) else (
@@ -238,7 +243,7 @@ for %%I in (
 if defined ISCC (
     echo.
     echo [6/7] Building installer...
-    "%ISCC%" "%ROOT%installer.iss" /Q
+    "%ISCC%" "%ROOT%installer.iss" /Q "/DAppVer=%APP_VERSION%"
     if not errorlevel 1 (
         echo [OK] Installer: %DIST%\MinecraftServerLauncher-Setup.exe
     ) else (
