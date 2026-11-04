@@ -411,6 +411,11 @@
                       <Label text="The animated background, the glow that follows your mouse and the card highlights. Turn off to save a little CPU and GPU on slower PCs." styleClass="muted" wrapText="true"/>
                       <CheckBox fx:id="effectsCheck" text="Animated background and cursor glow" onAction="#handleEffectsToggle"/>
                     </VBox>
+                    <VBox styleClass="card, setting-card">
+                      <Label text="Privacy" styleClass="card-title"/>
+                      <Label text="Player skin pictures are downloaded from minotar.net (or mc-heads.net if it's down), which means sending them the player's name. Turn this off to show each player's initial instead. Nothing else is sent anywhere unless you ask for it, such as when downloading a server JAR." styleClass="muted" wrapText="true"/>
+                      <CheckBox fx:id="skinHeadsCheck" text="Show player skin heads" onAction="#handleSkinHeadsToggle"/>
+                    </VBox>
                   </VBox>
                 </ScrollPane>
               </Tab>

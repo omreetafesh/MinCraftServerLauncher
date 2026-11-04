@@ -921,3 +921,11 @@
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 4, 0, 0, 1);
 }
 .theme-check .icon { -fx-stroke: -accent-ink; -fx-stroke-width: 3; }
+
+/* Initials shown instead of skin heads (while loading, or with skin heads off in Settings → Privacy) */
+.chat-avatar {
+    -fx-min-width: 28; -fx-min-height: 28; -fx-max-width: 28; -fx-max-height: 28;
+    -fx-background-radius: 7;
+}
+.chat-avatar .avatar-letter { -fx-font-size: 12px; }
+.map-marker-initial { -fx-text-fill: -accent-ink; -fx-font-size: 13px; -fx-font-weight: bold; }

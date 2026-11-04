@@ -1,0 +1,145 @@
+# Builds the installer from this repository's source on GitHub's own Windows runners and, once
+# SignPath is set up, has it signed: first the launcher .exe (so the copy inside the installer is
+# signed), then the installer itself. Each signing request waits for an approver in SignPath.
+#
+# Runs when a version tag is pushed (e.g. v1.2.1): the signed installer is attached to a draft
+# release with that name, ready to write notes and publish. Can also be started by hand from the
+# Actions tab; the installer is then kept as a workflow artifact. Pull requests are built too, as a
+# check that the installer still builds — those are never signed.
+#
+# Without SignPath configured it still builds everything, unsigned. Set up in the repository's
+# Settings → Secrets and variables → Actions:
+#   secret   SIGNPATH_API_TOKEN            (SignPath CI user's API token)
+#   variable SIGNPATH_ORGANIZATION_ID
+#   variable SIGNPATH_PROJECT_SLUG
+#   variable SIGNPATH_SIGNING_POLICY_SLUG  (e.g. release-signing)
+# The artifact configurations "app" and "installer" are in .signpath/artifact-configurations/.
+
+name: Release build
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to attach the installer to a draft release
+
+env:
+  JAVAFX_VERSION: 26.0.1
+  INNO_VERSION: 6.7.4
+  # Sign only real builds (tags / by hand), and only once SignPath is set up
+  SIGNPATH_CONFIGURED: ${{ secrets.SIGNPATH_API_TOKEN != '' && github.event_name != 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 26
+        uses: actions/setup-java@v6
+        with:
+          distribution: oracle
+          java-version: '26'
+
+      - name: Download JavaFX SDK
+        shell: pwsh
+        run: |
+          $v = $env:JAVAFX_VERSION
+          Invoke-WebRequest "https://download2.gluonhq.com/openjfx/$v/openjfx-${v}_windows-x64_bin-sdk.zip" -OutFile javafx.zip
+          Expand-Archive javafx.zip -DestinationPath .   # → javafx-sdk-<version>, where build.bat looks
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $v = $env:INNO_VERSION; $tag = "is-" + $v.Replace('.', '_')
+          Invoke-WebRequest "https://github.com/jrsoftware/issrc/releases/download/$tag/innosetup-$v.exe" -OutFile innosetup.exe
+          Start-Process .\innosetup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait
+
+      - name: Read the version from build.bat
+        shell: pwsh
+        run: |
+          $m = Select-String -Path build.bat -Pattern 'set "APP_VERSION=([^"]+)"'
+          "APP_VERSION=$($m.Matches[0].Groups[1].Value)" >> $env:GITHUB_ENV
+
+      - name: Build the launcher (everything except the installer)
+        shell: cmd
+        env:
+          SKIP_INSTALLER: '1'
+        run: build.bat < nul
+
+      # ── 1. Sign the launcher .exe ────────────────────────────────────
+      - name: Upload the launcher for signing
+        id: upload-app
+        uses: actions/upload-artifact@v7
+        with:
+          name: launcher-unsigned
+          path: dist/output/
+
+      - name: Sign the launcher (SignPath)
+        if: env.SIGNPATH_CONFIGURED == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: app
+          github-artifact-id: ${{ steps.upload-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600   # time for an approver to click Approve
+          output-artifact-directory: dist/output          # the signed files replace the unsigned ones
+
+      # ── 2. Build and sign the installer ──────────────────────────────
+      - name: Build the installer
+        shell: cmd
+        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss /Q "/DAppVer=%APP_VERSION%"'
+
+      - name: Upload the installer for signing
+        id: upload-installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-unsigned
+          path: dist/MinecraftServerLauncher-Setup.exe
+
+      - name: Sign the installer (SignPath)
+        if: env.SIGNPATH_CONFIGURED == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signed
+
+      - name: Pick the final installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          $src = if ("$env:SIGNPATH_CONFIGURED" -eq 'true') { 'dist/signed/MinecraftServerLauncher-Setup.exe' } else { 'dist/MinecraftServerLauncher-Setup.exe' }
+          Copy-Item $src release/MinecraftServerLauncher-Setup.exe
+          $sig = Get-AuthenticodeSignature release/MinecraftServerLauncher-Setup.exe
+          "Signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+
+      - name: Keep the installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: MinecraftServerLauncher-Setup-${{ env.APP_VERSION }}${{ env.SIGNPATH_CONFIGURED != 'true' && '-unsigned' || '' }}
+          path: release/MinecraftServerLauncher-Setup.exe
+
+      - name: Attach to a draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) { gh release create $tag --draft --title "Minecraft Server Launcher $tag" --notes "Draft: write the release notes, then publish." }
+          gh release upload $tag release/MinecraftServerLauncher-Setup.exe --clobber
