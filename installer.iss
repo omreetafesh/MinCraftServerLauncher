@@ -1,6 +1,6 @@
 ; build.bat passes its APP_VERSION as /DAppVer; this default is for compiling the script by hand
 #ifndef AppVer
-  #define AppVer "1.1.0"
+  #define AppVer "1.2.0"
 #endif
 
 [Setup]

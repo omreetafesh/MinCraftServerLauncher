@@ -13,7 +13,7 @@ import java.util.Random;
  *   wizard_icon_*.png   transparent logo for the header of the other pages
  * Several sizes of each, so Inno Setup can pick a sharp one at any DPI.
  * Compile: javac -d tools\bin tools\MakeWizardArt.java src\main\AppIcon.java
- * Run:     java -cp tools\bin MakeWizardArt dist 1.1.0
+ * Run:     java -cp tools\bin MakeWizardArt dist 1.2.0
  */
 public class MakeWizardArt {
 
@@ -29,7 +29,7 @@ public class MakeWizardArt {
     // Image areas at 100% DPI with default settings (Inno Setup docs), and the DPI steps to cover
     static final double[] DPI = {1.0, 1.25, 1.5, 1.75, 2.0, 2.5};
 
-    static String version = "1.1.0";   // build.bat passes its APP_VERSION
+    static String version = "1.2.0";   // build.bat passes its APP_VERSION
 
     public static void main(String[] args) throws Exception {
         String out = args.length > 0 ? args[0] : "dist";
