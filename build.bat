@@ -13,7 +13,7 @@ echo.
 ::  CONFIGURATION  (edit if auto-detection fails)
 :: =============================================================
 set "APP_NAME=Minecraft Server Launcher"
-set "APP_VERSION=1.1.0"
+set "APP_VERSION=1.2.0"
 set "APP_VENDOR=Omree"
 
 :: Leave blank to auto-detect
