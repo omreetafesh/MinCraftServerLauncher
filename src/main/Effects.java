@@ -12,16 +12,19 @@ import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.RadialGradient;
 import javafx.scene.paint.Stop;
-import javafx.scene.shape.Circle;
+import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelFormat;
+import javafx.scene.image.WritableImage;
 import javafx.scene.shape.Rectangle;
 
+import java.util.List;
 import java.util.Set;
 
 /**
  * The window's ambient lighting, drawn on two mouse-transparent layers around the UI:
  * <ul>
- *   <li><b>back</b> (behind the translucent panels): slowly drifting aurora blobs, and a soft emerald
- *       glow that trails the cursor and fades out once the mouse rests or leaves the window;</li>
+ *   <li><b>back</b> (behind the translucent panels): slowly drifting aurora blobs, and a soft glow
+ *       that trails the cursor and fades out once the mouse rests or leaves the window;</li>
  *   <li><b>front</b> (over the UI): a spotlight that lights up the border of the card under the cursor.</li>
  * </ul>
  * One AnimationTimer drives it all and stops itself when nothing is moving, so an idle launcher
@@ -29,7 +32,7 @@ import java.util.Set;
  */
 final class Effects {
 
-    private static final Color ACCENT = Color.web("#34d399");
+    private Color accent = Theme.DEFAULT.glow;   // the spotlight's color (follows the theme)
     /** Style classes of the panels the spotlight attaches to. */
     private static final Set<String> CARD_CLASSES =
         Set.of("card", "rail", "command-bar", "props-section", "stats-card", "profile-card");
@@ -39,13 +42,9 @@ final class Effects {
 
     private final Pane back, front;
 
-    private final Circle halo = glow(240, ACCENT, 0.22);                 // big, lags behind the cursor
-    private final Circle core = glow(80, Color.web("#6ee7b7"), 0.22);    // small, hugs the cursor
-    private final Circle[] blobs = {
-        glow(520, Color.web("#10b981"), 0.13),
-        glow(460, Color.web("#3b82f6"), 0.09),
-        glow(400, Color.web("#8b5cf6"), 0.07),
-    };
+    private final Glow halo = glow(240);                    // big, lags behind the cursor
+    private final Glow core = glow(80);                     // small, hugs the cursor
+    private final Glow[] blobs = { glow(520), glow(460), glow(400) };   // the drifting aurora
     // Lissajous paths for the blobs: centre x/y (fraction of the window), amplitude x/y, speed x/y, phase
     private static final double[][] PATHS = {
         {0.22, 0.30, 0.20, 0.18, 0.050, 0.037, 0.0},
@@ -92,6 +91,7 @@ final class Effects {
         }
         back.getChildren().addAll(blobs);
         back.getChildren().addAll(halo, core);
+        setTheme(Theme.DEFAULT);
         halo.setOpacity(0);
         core.setOpacity(0);
 
@@ -107,6 +107,28 @@ final class Effects {
         });
         placeBlobs(0);
         wake();
+    }
+
+    private Theme theme;
+
+    /** Recolors the glow, the aurora and the spotlight. */
+    void setTheme(Theme t) {
+        if (t == theme) return;   // the glows are images: only redraw them when something changed
+        theme = t;
+        accent = t.glow;
+        // A light theme can't be "lit" from behind its near-opaque white panels: what little shows
+        // through spans so few screen shades that it bands into rings. There the cursor glow is a
+        // faint tint laid over the panels instead (last layer drawn, so its dither survives).
+        Pane layer = t.light ? front : back;
+        if (halo.getParent() != layer) {
+            ((Pane) halo.getParent()).getChildren().removeAll(halo, core);
+            if (t.light) layer.getChildren().addAll(0, List.of(halo, core));   // under the spotlight
+            else layer.getChildren().addAll(halo, core);
+        }
+        paint(halo, t.halo, t.glowAlpha);
+        paint(core, t.glowCore, t.glowAlpha);
+        for (int i = 0; i < blobs.length; i++) paint(blobs[i], t.aurora[i], t.auroraAlpha[i]);
+        lastSpot = new double[0];   // repaint the spotlight in the new color
     }
 
     /** Turns all effects on or off (Settings → Performance → Interface effects). */
@@ -226,9 +248,9 @@ final class Effects {
         lastSpotCard = c;
         CornerRadii radii = radiiOf(c);
         RadialGradient edge = new RadialGradient(0, 0, lx, ly, 190, false, CycleMethod.NO_CYCLE,
-            new Stop(0, ACCENT.deriveColor(0, 1, 1, 0.75)), new Stop(1, Color.TRANSPARENT));
+            new Stop(0, accent.deriveColor(0, 1, 1, 0.75)), new Stop(1, Color.TRANSPARENT));
         RadialGradient fill = new RadialGradient(0, 0, lx, ly, 320, false, CycleMethod.NO_CYCLE,
-            new Stop(0, ACCENT.deriveColor(0, 1, 1, 0.065)), new Stop(1, Color.TRANSPARENT));
+            new Stop(0, accent.deriveColor(0, 1, 1, 0.065)), new Stop(1, Color.TRANSPARENT));
         spot.setBackground(new Background(new BackgroundFill(fill, radii, null)));
         spot.setBorder(new Border(new BorderStroke(edge, BorderStrokeStyle.SOLID, radii, new BorderWidths(1))));
     }
@@ -250,23 +272,51 @@ final class Effects {
         return from + (to - from) * (1 - Math.exp(-dt * rate));
     }
 
-    /**
-     * A circle centred on (0,0) whose fill fades from {@code alpha} to nothing along (1-t²)³ — a curve
-     * with no kinks, sampled finely, so the dark gradient doesn't show visible rings.
-     */
-    private static Circle glow(double radius, Color c, double alpha) {
-        Circle g = new Circle(radius);
-        g.setManaged(false);
-        int n = 16;
-        Stop[] stops = new Stop[n + 1];
-        for (int i = 0; i <= n; i++) {
-            double t = i / (double) n, f = Math.pow(1 - t * t, 3);
-            stops[i] = new Stop(t, c.deriveColor(0, 1, 1, alpha * f));
+    /** A glow centred on (0,0); {@link #paint} draws it. An image, so moving / fading it is a cheap copy. */
+    private static final class Glow extends ImageView {
+        final int radius;
+        Glow(int radius) {
+            this.radius = radius;
+            setManaged(false);
+            setLayoutX(-radius);   // so translateX/Y place its centre
+            setLayoutY(-radius);
+            setSmooth(false);      // drawn 1:1; never let scaling blur the dither
         }
-        g.setFill(new RadialGradient(0, 0, 0.5, 0.5, 0.5, true, CycleMethod.NO_CYCLE, stops));
-        // Rendered once into a texture; moving / fading it is then a cheap copy, not a new gradient
-        g.setCache(true);
-        g.setCacheHint(javafx.scene.CacheHint.SPEED);
-        return g;
+    }
+
+    private static Glow glow(int radius) { return new Glow(radius); }
+
+    /**
+     * Draws a glow in {@code c}, fading from {@code alpha} to nothing along (1-t²)³ — a curve with no
+     * kinks. It's dithered: the glow shines through the panels only faintly, so it spans just a dozen
+     * or so screen shades, and without a little noise each shade shows as a ring (most of all on a
+     * light theme). The noise is under one shade on screen, so it's invisible; only the rings go.
+     */
+    private static void paint(Glow g, Color c, double alpha) {
+        int r = g.radius, size = r * 2;
+        int rgb = ((int) Math.round(c.getRed() * 255) << 16) | ((int) Math.round(c.getGreen() * 255) << 8)
+                | (int) Math.round(c.getBlue() * 255);
+        int[] px = new int[size * size];
+        int seed = 0x9E3779B9;
+        double peak = alpha * 255;
+        for (int y = 0; y < size; y++) {
+            double dy = (y + 0.5 - r) / r, dy2 = dy * dy;
+            for (int x = 0; x < size; x++) {
+                double dx = (x + 0.5 - r) / r, t2 = dx * dx + dy2;
+                if (t2 >= 1) continue;
+                double f = (1 - t2) * (1 - t2) * (1 - t2);
+                // Triangular noise of ±3 alpha steps (xorshift: fast and good enough for dither),
+                // faded out at the very edge so it can't leave a speckled rim
+                seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+                double n1 = (seed & 0xFFFF) / 65535.0, n2 = ((seed >>> 16) & 0xFFFF) / 65535.0;
+                double a = peak * f + (n1 - n2) * 3 * Math.min(1, f * 12);
+                int ai = (int) Math.round(a);
+                if (ai <= 0) continue;
+                px[y * size + x] = (Math.min(255, ai) << 24) | rgb;
+            }
+        }
+        WritableImage img = new WritableImage(size, size);
+        img.getPixelWriter().setPixels(0, 0, size, size, PixelFormat.getIntArgbInstance(), px, 0, size);
+        g.setImage(img);
     }
 }

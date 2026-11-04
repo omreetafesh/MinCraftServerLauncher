@@ -139,9 +139,16 @@ echo [1/4] Compiling Java sources...
     "%SRC%\main\Effects.java" ^
     "%SRC%\main\Icon.java" ^
     "%SRC%\main\LauncherController.java" ^
+    "%SRC%\main\LiveChart.java" ^
     "%SRC%\main\Motion.java" ^
     "%SRC%\main\Main.java" ^
-    "%SRC%\main\RconClient.java"
+    "%SRC%\main\MapView.java" ^
+    "%SRC%\main\PerfPage.java" ^
+    "%SRC%\main\RconClient.java" ^
+    "%SRC%\main\ServerStats.java" ^
+    "%SRC%\main\Theme.java" ^
+    "%SRC%\main\ThemePicker.java" ^
+    "%SRC%\main\WorldMap.java"
 
 if errorlevel 1 (
     echo [ERR] Compilation failed.

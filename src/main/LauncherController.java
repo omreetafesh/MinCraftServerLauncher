@@ -12,7 +12,6 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -84,7 +83,9 @@ public class LauncherController {
     // Aikar's optimized JVM flags
     private static final String[] AIKARS_FLAGS = {
         "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled", "-XX:MaxGCPauseMillis=200",
-        "-XX:+UnlockExperimentalVMOptions", "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch",
+        // (Aikar's list also has -XX:+AlwaysPreTouch; left out, because with it Java takes all of
+        // Max Memory from the PC the moment it starts, used or not — see memoryFlags())
+        "-XX:+UnlockExperimentalVMOptions", "-XX:+DisableExplicitGC",
         "-XX:G1NewSizePercent=30", "-XX:G1MaxNewSizePercent=40", "-XX:G1HeapRegionSize=8M",
         "-XX:G1ReservePercent=20", "-XX:G1HeapWastePercent=5", "-XX:G1MixedGCCountTarget=4",
         "-XX:InitiatingHeapOccupancyPercent=15", "-XX:G1MixedGCLiveThresholdPercent=90",
@@ -247,6 +248,7 @@ public class LauncherController {
 
     private volatile boolean eulaRequired = false; // server printed "You need to agree to the EULA"
     private String currentJavaExe = "java";
+    private int    currentJavaVersion;          // major version of currentJavaExe, 0 = unknown
     private boolean launchPending = false; // Start pressed, process not created yet
     private final Map<String, Image> headCache = new HashMap<>();
 
@@ -282,20 +284,13 @@ public class LauncherController {
     private java.nio.charset.Charset propsCharset = java.nio.charset.StandardCharsets.UTF_8;
     private final Map<String, Control> propControls = new LinkedHashMap<>();
 
-    // ── Live Performance Charts ───────────────────────────────────────
-    private LineChart<Number, Number>  ramChart;
-    private LineChart<Number, Number>  tpsChart;
-    private AreaChart<Number, Number>  playerChart;
-    private final XYChart.Series<Number, Number> ramSeries    = new XYChart.Series<>();
-    private final XYChart.Series<Number, Number> tpsSeries    = new XYChart.Series<>();
-    private final XYChart.Series<Number, Number> playerSeries = new XYChart.Series<>();
-    private Timeline monitorTimeline;
-    private Label    ramValueLabel, tpsValueLabel, playerValueLabel;
-    private int monitorTick = 0;
-    // NaN = no real sample yet. TPS only appears in the log when someone runs /tps (Paper) or
-    // /tick query (vanilla), so the chart must not invent a flat "20".
-    private volatile double lastParsedTps = Double.NaN;
-    private static final int CHART_MAX_POINTS = 60; // 5 min at 5-second samples
+    // ── Performance page (PerfPage draws it; ServerStats reads memory / CPU) ──
+    private PerfPage    perfPage;
+    private ServerStats serverStats;
+    private Timeline    tickPoll;              // "tick query" every 5 s while the server is up
+    private long        tickPollUntil;         // its replies before this are ours (hidden from the console)
+    private boolean     tickUnsupported;       // the server has no "tick query" (before 1.20.3)
+    private int         maxPlayers = 20;
 
     // ── Player stats ─────────────────────────────────────────────────
     private final ObservableList<ObservableList<String>> playerStatsData =
@@ -383,6 +378,7 @@ public class LauncherController {
 
     // ─── FXML: Online players panel ──────────────────────────────────
     @FXML private VBox             playersRail;
+    @FXML private StackPane        mapHost;
     @FXML private ListView<String> playerList;
     @FXML private Label            playerCountLabel;
     @FXML private HBox             counterContainer;
@@ -406,6 +402,7 @@ public class LauncherController {
         setupRconView();
         setupMacrosList();
         setupPlayerList();
+        setupMap();
         setupCommandHistory();
         logoView.setImage(Main.bufToFx(AppIcon.draw(68)));
         motdIconView.setImage(logoView.getImage());
@@ -442,6 +439,7 @@ public class LauncherController {
         optimizedFlagsCheck.setSelected(prefs.getBoolean("optimizedFlags", false));
         loadMacros();
         setupMotion();
+        setupThemes();
 
         showPage("console");
         appendSystemLog(serverDirectory == null
@@ -582,8 +580,9 @@ public class LauncherController {
     private static final Map<String, String[]> PAGES = Map.of(
         "console",     new String[]{"Console",          "Live server output and commands"},
         "chat",        new String[]{"Chat",             "What players are saying"},
+        "map",         new String[]{"World Map",        "The explored world and where everyone is"},
         "access",      new String[]{"Whitelist & Bans", "Control who can join"},
-        "monitor",     new String[]{"Performance",      "Memory, TPS and players over the last 5 minutes"},
+        "monitor",     new String[]{"Performance",      "Your server's health: TPS, tick time, memory, CPU and players"},
         "history",     new String[]{"Player History",   "Stats for everyone who has played"},
         "diagnostics", new String[]{"Diagnostics",      "Problems spotted in the server log"},
         "rcon",        new String[]{"Remote Console",   "Send commands to a server over RCON"},
@@ -608,9 +607,11 @@ public class LauncherController {
         pageSubtitle.setText(title[1]);
         for (Toggle t : navGroup.getToggles()) if (id.equals(t.getUserData())) t.setSelected(true);
         boolean settings = id.equals("settings");
-        boolean railAppears = !settings && !playersRail.isVisible();
-        playersRail.setVisible(!settings);   // settings forms get the full width
-        playersRail.setManaged(!settings);
+        // Settings forms and the Performance page (which charts the players itself) get the full width
+        boolean wide = settings || id.equals("monitor");
+        boolean railAppears = !wide && !playersRail.isVisible();
+        playersRail.setVisible(!wide);
+        playersRail.setManaged(!wide);
         if (appearing != null && stage != null && stage.isShowing()) {
             Motion.enter(appearing, 0, 14, 420, 0);
             Motion.enter(pageTitle.getParent(), 0, 6, 360, 0);
@@ -621,6 +622,8 @@ public class LauncherController {
             refreshBackupList();
             refreshJavaHint(); // the JAR may have been replaced since (e.g. a new download)
         }
+        setMapActive(id.equals("map"));
+        if (perfPage != null) perfPage.setActive(id.equals("monitor"));
     }
 
     // ─── Header status pill ──────────────────────────────────────────
@@ -678,6 +681,75 @@ public class LauncherController {
         settingsTabs.getSelectionModel().selectedItemProperty().addListener((obs, o, tab) -> {
             if (tab != null && tab.getContent() != null) Motion.enter(tab.getContent(), 0, 10, 380, 0);
         });
+    }
+
+    // ─── Themes ──────────────────────────────────────────────────────
+    // Theme.java holds the palettes. The chosen one is a small stylesheet laid over style.css on every
+    // window the launcher shows (main window, dialogs, tray menu); the colors the code draws itself
+    // (cursor glow and aurora, the map, the logo) are set here too.
+
+    @FXML private Button themeButton;
+    private Theme theme = Theme.DEFAULT;
+    private ThemePicker themePicker;
+    /** Every stylesheet list that carries the theme, so a new pick also reaches windows already open. */
+    private final List<java.lang.ref.WeakReference<ObservableList<String>>> themedSheets = new ArrayList<>();
+
+    private void setupThemes() {
+        themePicker = new ThemePicker(appShell, () -> theme, t -> applyTheme(t, true));
+        themedSheets.add(new java.lang.ref.WeakReference<>(appShell.getStylesheets()));
+        applyTheme(Theme.byId(prefs.get("theme", Theme.DEFAULT.id)), false);
+    }
+
+    @FXML private void handleThemeButton() { themePicker.toggle(themeButton); }
+
+    /** Switches the whole launcher to {@code t}; with {@code animate}, the old look fades into the new. */
+    private void applyTheme(Theme t, boolean animate) {
+        ImageView before = animate && stage != null && stage.isShowing() ? snapshotOf(appShell) : null;
+        theme = t;
+        String css = t.stylesheet();
+        themedSheets.removeIf(r -> r.get() == null);
+        for (var ref : themedSheets) {
+            ObservableList<String> sheets = ref.get();
+            if (sheets == null) continue;
+            sheets.removeIf(u -> u.startsWith("data:text/css"));
+            sheets.add(css);
+        }
+        effects.setTheme(t);
+        mapView.setTheme(t);
+        perfPage.setTheme(t);
+        Image logo = Main.bufToFx(t.logo(68));
+        if (motdIconView.getImage() == logoView.getImage()) motdIconView.setImage(logo); // not a real server icon
+        logoView.setImage(logo);
+        prefs.put("theme", t.id);
+
+        if (before != null) {
+            // A picture of the old look on top, fading away to reveal the new one
+            appShell.getChildren().add(before);
+            javafx.animation.FadeTransition fade = new javafx.animation.FadeTransition(Duration.millis(420), before);
+            fade.setToValue(0);
+            fade.setInterpolator(Motion.EASE_OUT);
+            fade.setOnFinished(e -> appShell.getChildren().remove(before));
+            fade.play();
+        }
+    }
+
+    /** A sharp (HiDPI-aware) picture of {@code r}, sized to lie exactly over it. */
+    private ImageView snapshotOf(Region r) {
+        javafx.scene.SnapshotParameters sp = new javafx.scene.SnapshotParameters();
+        sp.setTransform(javafx.scene.transform.Transform.scale(stage.getOutputScaleX(), stage.getOutputScaleY()));
+        ImageView v = new ImageView(r.snapshot(sp, null));
+        v.setFitWidth(r.getWidth());
+        v.setFitHeight(r.getHeight());
+        v.setManaged(false);
+        v.setMouseTransparent(true);
+        return v;
+    }
+
+    /** Gives another window's stylesheet list the app's look: style.css plus the current theme. */
+    private void useAppStyle(ObservableList<String> sheets) {
+        sheets.add(getClass().getResource("style.css").toExternalForm());
+        sheets.add(theme.stylesheet());
+        themedSheets.add(new java.lang.ref.WeakReference<>(sheets));
     }
 
     private void placeNavIndicator(boolean animate) {
@@ -799,6 +871,7 @@ public class LauncherController {
 
         serverDirectory = sp != null ? new File(sp) : null;
         backupDirectory = bp != null ? new File(bp) : null;
+        refreshMapWorld();
 
         serverPathField.setText(sp != null ? sp : "");
         backupPathField.setText(bp != null ? bp : "");
@@ -999,7 +1072,7 @@ public class LauncherController {
             shadowRoom.setStyle("-fx-background-color: transparent; -fx-padding: 14;");
             Scene scene = new Scene(shadowRoom);
             scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
-            scene.getStylesheets().add(getClass().getResource("style.css").toExternalForm());
+            useAppStyle(scene.getStylesheets());
             trayMenuStage.setScene(scene);
 
             trayMenuStage.focusedProperty().addListener((obs, was, focused) -> {
@@ -1035,111 +1108,61 @@ public class LauncherController {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // FEATURE 1 — LIVE PERFORMANCE CHARTS
+    // FEATURE 1 — PERFORMANCE PAGE
     // ════════════════════════════════════════════════════════════════
+    // PerfPage draws it. The numbers are the server's own: memory / CPU from ServerStats (read from
+    // the server's Java every 2 s), TPS and tick time from "tick query" every 5 s (replies hidden
+    // from the console), players from the join / leave lines.
 
     private void setupMonitorCharts() {
         if (monitorContainer == null) return;
-
-        ramSeries.setName("RAM");
-        tpsSeries.setName("TPS");
-        playerSeries.setName("Players");
-
-        ramChart = new LineChart<>(timeAxis(), new NumberAxis());
-        styleChart(ramChart, "chart-ram");
-        ramChart.getData().add(ramSeries);
-
-        NumberAxis yTps = new NumberAxis(0, 20, 5);
-        yTps.setAutoRanging(false);
-        tpsChart = new LineChart<>(timeAxis(), yTps);
-        styleChart(tpsChart, "chart-tps");
-        tpsChart.getData().add(tpsSeries);
-
-        NumberAxis yPly = new NumberAxis();
-        yPly.setMinorTickVisible(false);
-        yPly.setTickUnit(1);
-        playerChart = new AreaChart<>(timeAxis(), yPly);
-        styleChart(playerChart, "chart-player");
-        playerChart.getData().add(playerSeries);
-
-        ramValueLabel = new Label("–"); tpsValueLabel = new Label("–"); playerValueLabel = new Label("0");
-        monitorContainer.getChildren().setAll(
-            chartCard("Memory in use", "Whole PC", ramValueLabel, "MB", ramChart),
-            chartCard("Server TPS", "Sampled when someone runs “tps” (Paper) or “tick query” (vanilla) · 20 is perfect",
-                      tpsValueLabel, "TPS", tpsChart),
-            chartCard("Players online", "Updated every 5 seconds", playerValueLabel, "online", playerChart));
-    }
-
-    /** A card with a title, a big live number, and the chart under it. */
-    private static VBox chartCard(String title, String note, Label value, String unit, XYChart<?, ?> chart) {
-        Label t = new Label(title);  t.getStyleClass().add("card-title");
-        Label n = new Label(note);   n.getStyleClass().add("muted");
-        value.getStyleClass().add("chart-value");
-        Label u = new Label(unit);   u.getStyleClass().add("chart-unit");
-        Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox head = new HBox(8, new VBox(2, t, n), spacer, value, u);
-        head.setAlignment(Pos.BOTTOM_LEFT);
-        chart.setPrefHeight(190);
-        chart.setMinHeight(170);
-        VBox card = new VBox(head, chart);
-        card.getStyleClass().addAll("card", "chart-card");
-        return card;
-    }
-
-    private NumberAxis timeAxis() {
-        NumberAxis ax = new NumberAxis();
-        ax.setAutoRanging(true); ax.setForceZeroInRange(false); ax.setMinorTickVisible(false);
-        ax.setTickLabelFormatter(new javafx.util.StringConverter<>() {   // 95 → "1:35"
-            @Override public String toString(Number n) { int s = n.intValue(); return (s / 60) + ":" + String.format("%02d", s % 60); }
-            @Override public Number fromString(String s) { return 0; }
+        perfPage = new PerfPage(monitorContainer);
+        serverStats = new ServerStats(s -> {
+            perfPage.onStats(s);
+            perfPage.onPlayers(s.time(), onlinePlayers.size(), maxPlayers);
         });
-        return ax;
+        tickPoll = new Timeline(new KeyFrame(Duration.seconds(5), e -> pollTick()));
+        tickPoll.setCycleCount(Timeline.INDEFINITE);
     }
 
-    private void styleChart(XYChart<?, ?> chart, String styleClass) {
-        chart.setAnimated(false);
-        chart.setLegendVisible(false);
-        chart.getStyleClass().add(styleClass);
-        if (chart instanceof LineChart<?, ?> lc) lc.setCreateSymbols(false);
-        if (chart instanceof AreaChart<?, ?> ac) ac.setCreateSymbols(false);
-    }
-
+    /** The server is starting: begin collecting. */
     private void startMonitorTimeline() {
-        if (monitorTimeline != null) monitorTimeline.stop();
-        monitorTick = 0;
-        ramSeries.getData().clear(); tpsSeries.getData().clear(); playerSeries.getData().clear();
-        monitorTimeline = new Timeline(new KeyFrame(Duration.seconds(5), e -> updateChartTick()));
-        monitorTimeline.setCycleCount(Timeline.INDEFINITE);
-        monitorTimeline.play();
-    }
-
-    private void stopMonitorTimeline() {
-        if (monitorTimeline != null) { monitorTimeline.stop(); monitorTimeline = null; }
-    }
-
-    private void updateChartTick() {
-        monitorTick += 5;
-        // RAM — system used memory via OS bean
+        tickUnsupported = false;
         try {
-            com.sun.management.OperatingSystemMXBean os =
-                (com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-            long usedMB = (os.getTotalMemorySize() - os.getFreeMemorySize()) / 1_048_576L;
-            chartPoint(ramSeries, monitorTick, usedMB);
-            ramValueLabel.setText(String.format("%,d", usedMB));
-        } catch (Exception ignored) {}
-        // TPS — from last parsed server log
-        if (!Double.isNaN(lastParsedTps)) {
-            chartPoint(tpsSeries, monitorTick, lastParsedTps);
-            tpsValueLabel.setText(String.format("%.1f", lastParsedTps));
-        }
-        // Players
-        chartPoint(playerSeries, monitorTick, onlinePlayers.size());
-        playerValueLabel.setText(String.valueOf(onlinePlayers.size()));
+            String mp = serverDirectory == null ? null
+                : parsePropertiesContent(readPropertiesFile(new File(serverDirectory, "server.properties"))).get("max-players");
+            if (mp != null) maxPlayers = Integer.parseInt(mp.trim());
+        } catch (IOException | RuntimeException ignored) {}
+        perfPage.serverStarted();
+        tickPoll.play();
     }
 
-    private void chartPoint(XYChart.Series<Number, Number> s, int x, double y) {
-        s.getData().add(new XYChart.Data<>(x, y));
-        if (s.getData().size() > CHART_MAX_POINTS) s.getData().remove(0);
+    /** The server stopped (or crashed): stop collecting; the history stays, with a gap. */
+    private void stopMonitorTimeline() {
+        if (tickPoll != null) tickPoll.stop();
+        if (serverStats != null) serverStats.stop();
+        if (perfPage != null) perfPage.serverStopped();
+    }
+
+    private void pollTick() {
+        Process p = serverProcess;
+        if (tickUnsupported || p == null || !p.isAlive() || !statusLabel.getStyleClass().contains("status-online")) return;
+        tickPollUntil = System.nanoTime() + 3_000_000_000L;
+        sendServerCommand("tick query");
+    }
+
+    /** A reply to our "tick query" (parsed, then kept out of the console). */
+    private boolean isTickReply(String line) {
+        if (System.nanoTime() - tickPollUntil > 0) return false;
+        if (line.contains("Unknown or incomplete command") || line.contains("<--[HERE]")) {
+            if (line.contains("Unknown or incomplete command") && !tickUnsupported) {
+                tickUnsupported = true;
+                perfPage.setTpsUnsupported();
+            }
+            return true;
+        }
+        return line.contains("The game is ") || line.contains("Target tick rate") || line.contains("Average time per tick")
+            || line.contains("Percentiles: P50");
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -1523,7 +1546,7 @@ public class LauncherController {
         if (stage != null && stage.isShowing()) a.initOwner(stage);
         if (a.showAndWait().orElse(keepWaiting) == forceQuit) {
             appendSystemLog("> Force-killing server.");
-            p.destroyForcibly();
+            killServer(p);
             exitApp();
         } else quitTimeout.playFromStart();
     }
@@ -1545,8 +1568,18 @@ public class LauncherController {
             OutputStream in = serverInput;
             if (in != null) { in.write("stop\n".getBytes()); in.flush(); }
         } catch (IOException ignored) {}
-        try { if (!p.waitFor(20, TimeUnit.SECONDS)) p.destroyForcibly(); }
-        catch (InterruptedException e) { p.destroyForcibly(); }
+        try { if (!p.waitFor(20, TimeUnit.SECONDS)) killServer(p); }
+        catch (InterruptedException e) { killServer(p); }
+    }
+
+    /**
+     * Kills the server outright. Its child processes too: with Oracle's java.exe stub on the PATH,
+     * the process we started is only the stub, and killing just that would leave the real server
+     * running in the background, still holding the world and the port.
+     */
+    private static void killServer(Process p) {
+        p.descendants().forEach(ProcessHandle::destroyForcibly);
+        p.destroyForcibly();
     }
 
     public void cleanup() {
@@ -1622,7 +1655,7 @@ public class LauncherController {
         if (enabled)
             appendSystemLog("> Aikar's optimized JVM flags ENABLED — takes effect on next server start.");
         else
-            appendSystemLog("> Standard JVM flags (-Xmx/-Xms only).");
+            appendSystemLog("> Standard Java flags (memory settings only).");
     }
 
     @FXML
@@ -2115,6 +2148,12 @@ public class LauncherController {
 
             boolean running = serverProcess != null && serverProcess.isAlive();
             if (running) {
+                // A World Map save sent just before this backup would answer "Saved the game" for it:
+                // let that one finish first (the map doesn't save while we hold backupLock)
+                long sinceMapSave = System.nanoTime() - lastMapSave;
+                if (sinceMapSave < 3_000_000_000L) {
+                    try { Thread.sleep((3_000_000_000L - sinceMapSave) / 1_000_000); } catch (InterruptedException ignored) {}
+                }
                 // Pause autosave and flush everything to disk, so no chunk is half-written while we zip
                 CountDownLatch saved = new CountDownLatch(1);
                 saveLatch = saved;
@@ -2345,6 +2384,7 @@ public class LauncherController {
         currentJarName = jarName;
         currentMemGB   = mem;
         currentJavaExe = java.exe();
+        currentJavaVersion = java.version();
         currentUseOptimizedFlags = optimizedFlagsCheck.isSelected();
         launchPending  = true;
 
@@ -2355,7 +2395,7 @@ public class LauncherController {
         restartButton.setDisable(false); commandInput.setDisable(false);
         setStatus("Starting", "starting");
         serverStartMillis = System.currentTimeMillis(); uptimeClock.play();
-        lastParsedTps = Double.NaN; startMonitorTimeline();
+        startMonitorTimeline();
         onlinePlayers.clear(); updateCounterUI();
         Thread t = new Thread(this::runServerProcess); t.setDaemon(true); t.start();
     }
@@ -2376,11 +2416,33 @@ public class LauncherController {
         }
     }
 
+    /**
+     * Java's memory flags. "Max Memory" is a ceiling, not a reservation: Java starts small (1 GB,
+     * or less if the max is lower), grows only as the server needs, and hands memory back to Windows
+     * once it isn't needed — instead of taking the whole amount from the PC at startup.
+     */
+    static List<String> memoryFlags(String maxGB, int javaVersion) {
+        long maxMB;
+        try { maxMB = Math.round(Double.parseDouble(maxGB.trim()) * 1024); }
+        catch (NumberFormatException e) { maxMB = 2048; }
+        maxMB = Math.max(256, maxMB);
+        List<String> f = new ArrayList<>();
+        f.add("-Xmx" + maxMB + "M");
+        f.add("-Xms" + Math.min(1024, maxMB) + "M");
+        // After a collection, shrink back when over 40% of the heap is free (Java's default is 70%)
+        f.add("-XX:MinHeapFreeRatio=20");
+        f.add("-XX:MaxHeapFreeRatio=40");
+        // Java 12+: when the server is quiet, a collection still runs now and then, so memory freed
+        // by players leaving goes back to Windows. Older Java doesn't know the flag and would refuse
+        // to start, so it's only added when the version is known.
+        if (javaVersion >= 12) f.add("-XX:G1PeriodicGCInterval=60000");
+        return f;
+    }
+
     private void runServerProcess() {
         List<String> cmd = new ArrayList<>();
         cmd.add(currentJavaExe);
-        cmd.add("-Xmx" + currentMemGB + "G");
-        cmd.add("-Xms" + currentMemGB + "G");
+        cmd.addAll(memoryFlags(currentMemGB, currentJavaVersion));
         // Make the server print UTF-8 so player names / chat with accents aren't garbled (ignored by Java < 18)
         cmd.add("-Dstdout.encoding=UTF-8"); cmd.add("-Dstderr.encoding=UTF-8");
         if (currentUseOptimizedFlags) Collections.addAll(cmd, AIKARS_FLAGS);
@@ -2389,6 +2451,7 @@ public class LauncherController {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(serverDirectory);
         pb.redirectErrorStream(true);
+        opsSeeConsole = consoleBroadcastOn(); // what this run of the server uses (see World map)
         try {
             serverProcess = pb.start();
         } catch (IOException e) {
@@ -2396,6 +2459,7 @@ public class LauncherController {
             return;
         }
         serverInput = serverProcess.getOutputStream();
+        serverStats.start(serverProcess);   // the Performance page's memory / CPU
         Platform.runLater(() -> launchPending = false);
 
         List<String> recentLines = new ArrayList<>();
@@ -2518,7 +2582,14 @@ public class LauncherController {
 
         boolean follow = isConsoleAtBottom();
         boolean playersChanged = false, booted = false;
-        for (String line : batch) {
+        List<String> shown = new ArrayList<>(batch.size());
+        for (String raw : batch) {
+            String line = foldNetworkNoise(raw);
+            if (line == null) continue;                          // part of a folded trace
+            if (line != raw) { shown.add(line); continue; }      // its one-line summary (not a real problem)
+            if (isTickReply(line)) { parseTpsFromLog(line); continue; }  // the Performance page's own "tick query"
+            if (handleMapReply(line) || isMapSaveOutput(line)) continue; // the map's own queries and saves stay out of the console
+            shown.add(line);
             if (line.contains("> ") && CHAT_LINE.matcher(line).find()) chatLogs.add(line);
             playersChanged |= trackPlayers(line);
             checkDiagnostics(line);
@@ -2527,11 +2598,34 @@ public class LauncherController {
         }
         // "Starting" → "Online" once the server says it's ready for players
         if (booted && statusLabel.getStyleClass().contains("status-starting")) setStatus("Online", "online");
-        allLogs.addAll(batch);
+        allLogs.addAll(shown);
         trimLogs();
         if (chatLogs.size() > MAX_CHAT) chatLogs.remove(0, chatLogs.size() - MAX_CHAT);
         if (playersChanged) updateCounterUI();
         if (follow) scrollConsoleToBottom();
+    }
+
+    // Bots and server-list pings that drop a connection mid-handshake make vanilla print a ~40-line
+    // stack trace ("Error sending packet clientbound/minecraft:disconnect"). It's harmless, so the
+    // console shows one quiet line instead; the full trace stays in the server's logs/latest.log.
+    private boolean foldingTrace;
+    private static final Pattern TRACE_LINE = Pattern.compile(
+        "^(\\s+at |\\s*\\.\\.\\. \\d+ more|Caused by: |\\s*Suppressed: |[\\w$.]+(Exception|Error)\\b)");
+
+    /** null = drop the line (inside a folded trace), a new string = the summary, else the line itself. */
+    private String foldNetworkNoise(String line) {
+        if (line.contains("Error sending packet clientbound/minecraft:disconnect")) {
+            foldingTrace = true;
+            int end = line.indexOf(']');
+            String time = line.startsWith("[") && end > 0 ? line.substring(0, end + 1) + " " : "";
+            return "> " + time + "A connection dropped while it was still connecting — a harmless Minecraft "
+                + "error (usually internet bots or server-list pings). Full trace in logs/latest.log.";
+        }
+        if (foldingTrace) {
+            if (TRACE_LINE.matcher(line).find()) return null;
+            foldingTrace = false;
+        }
+        return line;
     }
 
     // Anchored to the log prefix ("[12:00:00 INFO]: " / "[12:00:00] [Server thread/INFO]: "), so a chat
@@ -3097,8 +3191,8 @@ public class LauncherController {
         root.getStyleClass().add("sheet");
         root.setPrefWidth(620);
         Scene scene = new Scene(root);
-        scene.setFill(javafx.scene.paint.Color.web("#131922")); // no white flash while it fades in
-        scene.getStylesheets().add(getClass().getResource("style.css").toExternalForm());
+        scene.setFill(theme.color("surface")); // no white flash while it fades in
+        useAppStyle(scene.getStylesheets());
         dialog.setScene(scene);
         root.setOpacity(0);
         dialog.setOnShown(e -> Motion.dialogIn(root));
@@ -3432,6 +3526,166 @@ public class LauncherController {
         return img;
     }
 
+    // ─── World map ───────────────────────────────────────────────────
+    // The map draws the world from its region files (MapView / WorldMap). While it's open, the
+    // launcher asks the server where everyone is twice a second. The server writes a changed chunk
+    // within ~0.1 s, but the same chunk only once per 10 s — so while the world is changing (someone
+    // building), the launcher also has it save once a second. None of this reaches the console.
+
+    private MapView mapView;
+    private final Timeline mapPoll = new Timeline(new KeyFrame(Duration.millis(500), e -> pollPlayerPositions()));
+    private int mapTicks;
+    private long mapPollUntil;                                     // replies before this are ours
+    private long mapSaveUntil;                                     // save messages before this are ours
+    private volatile long lastMapSave = Long.MIN_VALUE / 2;        // System.nanoTime() of the last map save
+    // broadcast-console-to-ops as the running server read it at launch: while it's on, every save
+    // would put "[Server: Saved the game]" in each op's chat, so the map doesn't save
+    private volatile boolean opsSeeConsole = true;
+    private final Map<String, WorldMap.Dim> playerDims = new HashMap<>();
+
+    private void setupMap() {
+        mapView = new MapView(this::headFor);
+        mapHost.getChildren().add(mapView);
+        mapPoll.setCycleCount(Animation.INDEFINITE);
+        onlinePlayers.addListener((javafx.collections.ListChangeListener<String>) c -> {
+            mapView.retainPlayers(onlinePlayers);
+            playerDims.keySet().retainAll(onlinePlayers);
+        });
+        // Clicking someone in "Online now" while the map is open finds them on it
+        playerList.setOnMouseClicked(e -> {
+            String p = playerList.getSelectionModel().getSelectedItem();
+            if (p != null && mapView.isVisible() && mapHost.getParent().isVisible()) mapView.focus(p);
+        });
+    }
+
+    private void setMapActive(boolean on) {
+        if (mapView == null) return;
+        boolean was = mapPoll.getStatus() == Animation.Status.RUNNING;
+        mapView.setActive(on);
+        if (on) {
+            mapView.setWorld(serverDirectory, levelName());
+            if (!was) { quietConsoleBroadcast(); pollPlayerPositions(); mapPoll.play(); }
+        } else {
+            mapPoll.stop();
+        }
+    }
+
+    /**
+     * Sets broadcast-console-to-ops=false in server.properties, so the map's saves don't show up in
+     * every op's chat. The server reads it at startup, so it applies after a restart.
+     */
+    private void quietConsoleBroadcast() {
+        File f = serverDirectory == null ? null : new File(serverDirectory, "server.properties");
+        if (f == null || !f.isFile()) return;
+        try {
+            byte[] bytes = Files.readAllBytes(f.toPath());
+            java.nio.charset.Charset cs = propertiesCharset(bytes);
+            String text = new String(bytes, cs);
+            String v = parsePropertiesContent(text).get("broadcast-console-to-ops");
+            if (v != null && v.trim().equalsIgnoreCase("false")) return;
+            String updated = v != null
+                ? text.replaceAll("(?m)^(\\s*broadcast-console-to-ops\\s*[=:]\\s*).*$", "$1false")
+                : text + (text.isEmpty() || text.endsWith("\n") ? "" : System.lineSeparator())
+                       + "broadcast-console-to-ops=false" + System.lineSeparator();
+            Files.writeString(f.toPath(), updated, cs);
+            boolean running = serverProcess != null && serverProcess.isAlive();
+            appendSystemLog("> World Map: turned off broadcast-console-to-ops in server.properties, so ops don't get "
+                + "\"Saved the game\" chat messages while the map keeps the world saved."
+                + (running ? " Restart the server once: until then, repeated changes in the same spot can take "
+                           + "up to 10 seconds to show on the map." : ""));
+            if (currentProps != null) loadServerProperties(); // keep the Settings form in step with the file
+        } catch (IOException e) {
+            appendSystemLog("[WARN] World Map: could not update server.properties: " + e.getMessage());
+        }
+    }
+
+    /** broadcast-console-to-ops from server.properties (Minecraft's default is true). */
+    private boolean consoleBroadcastOn() {
+        try {
+            String v = parsePropertiesContent(readPropertiesFile(new File(serverDirectory, "server.properties")))
+                .get("broadcast-console-to-ops");
+            return v == null || !v.trim().equalsIgnoreCase("false");
+        } catch (IOException | RuntimeException e) {
+            return true;
+        }
+    }
+
+    /** Another profile was picked while the map is open: show that server's world. */
+    private void refreshMapWorld() {
+        if (mapView != null && mapPoll.getStatus() == Animation.Status.RUNNING)
+            mapView.setWorld(serverDirectory, levelName());
+    }
+
+    /**
+     * Twice a second: asks the server where everyone is (answers come back through handleMapReply).
+     * Once a second while the world is changing: has it save, so a second change to a chunk that was
+     * just written doesn't wait out Minecraft's 10 s per-chunk save interval.
+     */
+    private void pollPlayerPositions() {
+        // Every 5 s: notice a world that didn't exist yet (new server), or a dimension first visited
+        if (++mapTicks % 10 == 0) mapView.rescan();
+        Process p = serverProcess;
+        if (p == null || !p.isAlive() || onlinePlayers.isEmpty()) return;
+        mapPollUntil = System.nanoTime() + 3_000_000_000L;
+        // The dimension first, so each position arrives knowing which world it belongs to
+        sendServerCommand("execute as @a run data get entity @s Dimension");
+        sendServerCommand("execute as @a run data get entity @s Pos");
+
+        boolean building = mapView.secondsSinceChange() < 10;
+        boolean ready = statusLabel.getStyleClass().contains("status-online");
+        // Never during a backup (it pauses saving while zipping); holding the lock while sending means
+        // a backup that starts right after knows exactly when this save went out
+        if (mapTicks % 2 == 0 && building && ready && !opsSeeConsole && backupLock.tryLock()) {
+            try {
+                mapSaveUntil = System.nanoTime() + 3_000_000_000L;
+                lastMapSave = System.nanoTime();
+                sendServerCommand("save-all");
+            } finally {
+                backupLock.unlock();
+            }
+        }
+    }
+
+    /** The server's replies to the map's save-all; true = one of them (kept out of the console). */
+    private boolean isMapSaveOutput(String line) {
+        if (System.nanoTime() > mapSaveUntil) return false;
+        return line.contains("Saving the game") || line.contains("Saved the game") || line.contains("Saving players")
+            || line.contains("Saving worlds") || line.contains("Saving chunks for level");
+    }
+
+    // "[12:00:00] [Server thread/INFO]: Steve has the following entity data: [12.5d, 64.0d, -30.2d]"
+    private static final Pattern ENTITY_DATA = Pattern.compile(
+        "^(?:\\[[^\\]]*\\] ?)+: (?:System chat: )?(?:.* )?(\\S+) has the following entity data: (.+)$");
+    private static final Pattern ENTITY_POS =
+        Pattern.compile("^\\[(-?[\\d.E-]+)d, (-?[\\d.E-]+)d, (-?[\\d.E-]+)d\\]$");
+    private static final Pattern ENTITY_DIM = Pattern.compile("^\"?([a-z0-9_.-]+:[a-z0-9_./-]+)\"?$");
+
+    /** Handles a reply to pollPlayerPositions; true = it was one (so it's kept out of the console). */
+    private boolean handleMapReply(String line) {
+        if (!line.contains(" has the following entity data: ") || System.nanoTime() > mapPollUntil) return false;
+        Matcher m = ENTITY_DATA.matcher(line);
+        if (!m.find()) return false;
+        String name = m.group(1), value = m.group(2).trim();
+        Matcher pos = ENTITY_POS.matcher(value);
+        if (pos.find()) {
+            try {
+                double x = Double.parseDouble(pos.group(1)), z = Double.parseDouble(pos.group(3));
+                // A modded dimension (no map for it) is stored as null: the marker just hides
+                WorldMap.Dim d = playerDims.containsKey(name) ? playerDims.get(name) : WorldMap.Dim.OVERWORLD;
+                mapView.updatePlayer(name, d, x, z);
+                return true;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        Matcher dim = ENTITY_DIM.matcher(value);
+        if (dim.find()) {
+            playerDims.put(name, WorldMap.Dim.fromId(dim.group(1)));
+            return true;
+        }
+        return false;
+    }
+
     // ════════════════════════════════════════════════════════════════
     // UTILITIES
     // ════════════════════════════════════════════════════════════════
@@ -3488,14 +3742,19 @@ public class LauncherController {
         if (!filteredLogs.isEmpty()) consoleList.scrollTo(filteredLogs.size() - 1);
     }
 
+    /** TPS / tick time for the Performance page, from "tick query" (ours or typed) and Paper's "tps". */
     private void parseTpsFromLog(String line) {
+        if (perfPage == null) return;
+        long now = System.currentTimeMillis();
         // Paper/Spigot /tps: "TPS from last 1m, 5m, 15m: *20.0*, *20.0*, *20.0*"
         if (line.contains("TPS from last")) {
             int colon = line.lastIndexOf(':');
             if (colon < 0) return;
             String[] parts = line.substring(colon + 1).replaceAll("[^0-9.]", " ").trim().split("\\s+");
-            try { lastParsedTps = Math.min(20.0, Double.parseDouble(parts[0])); }
-            catch (NumberFormatException ignored) {}
+            try {
+                double tps = Math.min(20.0, Double.parseDouble(parts[0]));
+                perfPage.onTick(now, 1000.0 / Math.max(tps, 0.1), 50);
+            } catch (NumberFormatException ignored) {}
             return;
         }
         // Vanilla 1.20.3+ /tick query: "Average time per tick: 12.3ms (Target: 50.0ms)"
@@ -3503,12 +3762,21 @@ public class LauncherController {
         if (m.find()) {
             try {
                 double mspt = Double.parseDouble(m.group(1)), target = Double.parseDouble(m.group(2));
-                if (mspt > 0) lastParsedTps = Math.min(1000.0 / target, 1000.0 / mspt);
+                if (mspt > 0 && target > 0) perfPage.onTick(now, mspt, target);
             } catch (NumberFormatException ignored) {}
+            return;
+        }
+        // …and the line after it: "Percentiles: P50: 0.3ms P95: 1.4ms P99: 50.9ms. Sample: 100"
+        Matcher p = TICK_PERCENTILES.matcher(line);
+        if (p.find()) {
+            try { perfPage.onPercentiles(Double.parseDouble(p.group(1)), Double.parseDouble(p.group(2))); }
+            catch (NumberFormatException ignored) {}
         }
     }
     private static final Pattern TICK_QUERY =
         Pattern.compile("Average time per tick: ([\\d.]+)ms \\(Target: ([\\d.]+)ms\\)");
+    private static final Pattern TICK_PERCENTILES =
+        Pattern.compile("P95: ([\\d.]+)ms P99: ([\\d.]+)ms");
 
     private void appendSystemLog(String message) {
         if (Platform.isFxApplicationThread()) addLogLine(message);
@@ -3522,7 +3790,6 @@ public class LauncherController {
         playerCountLabel.setText(count);
         counterContainer.getStyleClass().remove("count-zero");
         if (onlinePlayers.isEmpty()) counterContainer.getStyleClass().add("count-zero");
-        if (playerValueLabel != null) playerValueLabel.setText(String.valueOf(onlinePlayers.size()));
     }
 
     // ─── Dialog style helpers ────────────────────────────────────────
@@ -3544,14 +3811,14 @@ public class LauncherController {
     /** Gives a dialog the app's dark theme, its icon and owner — instead of the default light look. */
     private <D extends Dialog<?>> D themed(D dialog) {
         DialogPane pane = dialog.getDialogPane();
-        pane.getStylesheets().add(getClass().getResource("style.css").toExternalForm());
+        useAppStyle(pane.getStylesheets());
         dialog.setGraphic(null); // drops the old blue "?" / "!" bubbles
         if (dialog.getOwner() == null && stage != null && stage.isShowing()) dialog.initOwner(stage);
         if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage s && stage != null)
             s.getIcons().setAll(stage.getIcons());
         if (pane.getScene() != null && pane.getScene().getWindow() != null) {
             // Content fades/zooms in; the window behind it is surface-colored, so there's no white flash
-            pane.getScene().setFill(javafx.scene.paint.Color.web("#131922"));
+            pane.getScene().setFill(theme.color("surface"));
             javafx.stage.Window w = pane.getScene().getWindow();
             w.addEventHandler(javafx.stage.WindowEvent.WINDOW_SHOWING, e -> pane.setOpacity(0));
             w.addEventHandler(javafx.stage.WindowEvent.WINDOW_SHOWN,   e -> Motion.dialogIn(pane));
