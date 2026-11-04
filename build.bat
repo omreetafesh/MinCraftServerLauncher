@@ -178,6 +178,10 @@ echo [3/4] Packaging app...
 
 set "MODULE_PATH=%DIST%\app.jar;%FX%;%JAVA_HOME%\jmods"
 
+:: The release workflow always wants the app folder (its installer is made with Inno Setup), even
+:: on GitHub's runners, which come with WiX and would otherwise make jpackage's own .exe instead
+if defined SKIP_INSTALLER goto :app_image
+
 "%JAVA_HOME%\bin\jpackage" ^
     --type exe ^
     --name "%APP_NAME%" ^
@@ -200,6 +204,8 @@ if not errorlevel 1 goto :success
 echo.
 echo [INFO] .exe installer needs WiX Toolset 3.x - falling back to app-image...
 echo.
+
+:app_image
 
 "%JAVA_HOME%\bin\jpackage" ^
     --type app-image ^
