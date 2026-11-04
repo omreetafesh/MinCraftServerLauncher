@@ -9,7 +9,7 @@ Built with JavaFX 26 and packaged as a standalone Windows app — **no Java inst
 
 - **Start / Stop / Restart** your server with one click
 - **Live console** — see server output and send commands in real time
-- **Performance charts** — RAM usage, TPS, and player count over time
+- **Performance** — live TPS, tick time, memory, CPU and players read from the server itself, with 5 min / 30 min / 2 h history charts
 - **RCON support** — send commands to a running server remotely
 - **Server properties editor** — edit `server.properties` with a GUI
 - **Multi-profile support** — manage multiple server configurations
@@ -18,6 +18,8 @@ Built with JavaFX 26 and packaged as a standalone Windows app — **no Java inst
 - **Crash recovery & scheduled restarts** — with a 1-minute in-game warning
 - **First-run help** — EULA prompt, Java auto-detection, and clear errors instead of silent failures
 - **Custom window chrome** — no OS title bar, resizable from any edge, fully integrated controls
+- **World map** — a zoomable map of the explored Overworld, Nether and End, drawn straight from the world files (works on vanilla, no plugins), with live player markers
+- **Themes** — six looks named after Minecraft materials (Emerald, Prismarine, Amethyst, Nether, Cherry Grove and the light Quartz), picked from the palette button in the header
 - **Ambient motion** — a glow that follows the mouse under glass panels, card spotlights, a drifting aurora and smooth transitions (can be turned off in Settings → Performance)
 
 ---
@@ -79,6 +81,10 @@ src/
     Icon.java               vector UI icons
     Effects.java            cursor glow, card spotlight and aurora background
     Motion.java             shared animation helpers
+    Theme.java              the color themes (each becomes a stylesheet over style.css)
+    ThemePicker.java        the theme picker panel
+    WorldMap.java           reads region files and renders map tiles (cached in %LOCALAPPDATA%)
+    MapView.java            the World Map page: pan/zoom view and player markers
     Launcher.fxml           scene layout
     style.css               dark theme
 

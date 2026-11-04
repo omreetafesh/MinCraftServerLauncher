@@ -64,6 +64,9 @@
         <ToggleButton text="Chat" userData="chat" toggleGroup="$navGroup" onAction="#handleNav"
                       styleClass="nav-item" maxWidth="Infinity">
           <graphic><Icon name="chat"/></graphic></ToggleButton>
+        <ToggleButton text="World Map" userData="map" toggleGroup="$navGroup" onAction="#handleNav"
+                      styleClass="nav-item" maxWidth="Infinity">
+          <graphic><Icon name="map"/></graphic></ToggleButton>
         <ToggleButton text="Whitelist &amp; Bans" userData="access" toggleGroup="$navGroup" onAction="#handleNav"
                       styleClass="nav-item" maxWidth="Infinity">
           <graphic><Icon name="shield"/></graphic></ToggleButton>
@@ -139,6 +142,10 @@
         <Button fx:id="stopButton" text="Stop" onAction="#handleStopServer" styleClass="btn, btn-danger" minWidth="-Infinity">
           <graphic><Icon name="stop" size="14"/></graphic></Button>
 
+        <Button fx:id="themeButton" onAction="#handleThemeButton" styleClass="wc-button, theme-button">
+          <graphic><Icon name="palette" size="16"/></graphic>
+          <tooltip><Tooltip text="Theme"/></tooltip></Button>
+
         <HBox styleClass="window-controls">
           <Button onAction="#handleMinimize" styleClass="wc-button"><graphic><Icon name="minimize" size="14"/></graphic></Button>
           <Button onAction="#handleMaximize" styleClass="wc-button"><graphic><Icon name="maximize" size="13"/></graphic></Button>
@@ -181,6 +188,11 @@
               </HBox>
               <ListView fx:id="chatList" VBox.vgrow="ALWAYS" styleClass="log-list, mono"/>
             </VBox>
+          </VBox>
+
+          <!-- ── World Map (MapView is added in code) ────────── -->
+          <VBox id="map" styleClass="page" visible="false">
+            <StackPane fx:id="mapHost" styleClass="card, map-card" VBox.vgrow="ALWAYS"/>
           </VBox>
 
           <!-- ── Whitelist & Bans ────────────────────────────── -->
@@ -370,7 +382,7 @@
                   <VBox styleClass="settings-stack">
                     <VBox styleClass="card, setting-card">
                       <Label text="Memory" styleClass="card-title"/>
-                      <Label text="Maximum RAM for the server. 4–8 GB is a good range for modded or busy servers." styleClass="muted" wrapText="true"/>
+                      <Label text="The most RAM the server may use. It only takes what it needs and gives the rest back. 4–8 GB suits modded or busy servers." styleClass="muted" wrapText="true"/>
                       <HBox styleClass="field-row">
                         <TextField fx:id="memoryField" text="2" prefWidth="90" maxWidth="90" styleClass="number-field"/>
                         <Label text="GB" styleClass="unit"/>

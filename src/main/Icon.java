@@ -55,7 +55,12 @@ public final class Icon extends Group {
         Map.entry("eraser",   "M7 21l-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L11 21z M22 21H7 M5 11l9 9"),
         Map.entry("cpu",      "M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z "
                             + "M9 9h6v6H9z M9 1v3 M15 1v3 M9 20v3 M15 20v3 M20 9h3 M20 14h3 M1 9h3 M1 14h3"),
-        Map.entry("memory",   "M2 7h20v10H2z M6 11v2 M10 11v2 M14 11v2 M18 11v2")
+        Map.entry("memory",   "M2 7h20v10H2z M6 11v2 M10 11v2 M14 11v2 M18 11v2"),
+        Map.entry("map",      "M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15"),
+        Map.entry("palette",  "M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4"
+                            + "a5.6 5.6 0 0 0 5.6-5.6C23 5.5 18 2 12 2z M7.5 10.5h.01 M10.5 6.5h.01 M15.5 7.5h.01 M6.5 15h.01"),
+        Map.entry("minus",    "M5 12h14"),
+        Map.entry("locate",   "M12 2v3 M12 19v3 M2 12h3 M19 12h3 M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10z")
     );
     private static final Set<String> FILLED = Set.of("play", "stop");
 
