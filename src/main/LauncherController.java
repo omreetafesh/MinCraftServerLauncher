@@ -437,6 +437,8 @@ public class LauncherController {
         setupMotdEditor();
 
         optimizedFlagsCheck.setSelected(prefs.getBoolean("optimizedFlags", false));
+        skinHeads = prefs.getBoolean("skinheads", true);
+        skinHeadsCheck.setSelected(skinHeads);
         loadMacros();
         setupMotion();
         setupThemes();
@@ -503,16 +505,19 @@ public class LauncherController {
         // Rendered like a chat app: skin head, name, time, message
         chatList.setCellFactory(lv -> new ListCell<>() {
             private final ImageView head = new ImageView();
+            private final Label letter = styled("", "avatar-letter");   // shown under / instead of the head
+            private final StackPane avatar = new StackPane(letter, head);
             private final Label name = styled("", "chat-name"), time = styled("", "chat-time"), text = styled("", "chat-text");
             private final HBox row;
             {
                 head.setFitWidth(28); head.setFitHeight(28); head.setSmooth(false);
                 Rectangle clip = new Rectangle(28, 28); clip.setArcWidth(10); clip.setArcHeight(10);
                 head.setClip(clip);
+                avatar.getStyleClass().add("chat-avatar");
                 text.setWrapText(true);
                 VBox body = new VBox(2, new HBox(8, name, time), text);
                 HBox.setHgrow(body, Priority.ALWAYS);
-                row = new HBox(10, head, body);
+                row = new HBox(10, avatar, body);
                 row.getStyleClass().add("chat-row");
             }
             @Override protected void updateItem(String line, boolean empty) {
@@ -524,7 +529,10 @@ public class LauncherController {
                 time.setText(m.group(1));
                 name.setText(m.group(2));
                 text.setText(m.group(3));
-                head.setImage(headFor(m.group(2)));
+                String player = m.group(2), base = player.startsWith(".") ? player.substring(1) : player;
+                letter.setText(base.isEmpty() ? "?" : base.substring(0, 1).toUpperCase());
+                avatar.setStyle("-fx-background-color:" + AVATAR_COLORS[Math.floorMod(player.hashCode(), AVATAR_COLORS.length)] + ";");
+                head.setImage(headFor(player));
                 text.maxWidthProperty().bind(lv.widthProperty().subtract(80));
                 setGraphic(row);
             }
@@ -3506,9 +3514,27 @@ public class LauncherController {
         "https://mc-heads.net/avatar/%s/64"
     };
 
-    /** The player's skin head (cached). A failed download is NOT cached forever — see trackPlayers(). */
+    /**
+     * The player's skin head (cached), or null when skin heads are turned off (Settings → Privacy;
+     * the installer asks too) — then nothing is downloaded and the player's initial is shown.
+     * A failed download is NOT cached forever — see trackPlayers().
+     */
     private Image headFor(String player) {
+        if (!skinHeads) return null;
         return headCache.computeIfAbsent(player, p -> loadHead(p, 0));
+    }
+
+    @FXML private CheckBox skinHeadsCheck;
+    // Stored as "skinheads" (all lowercase, so the installer can set it in the registry as-is)
+    private boolean skinHeads = true;
+
+    @FXML private void handleSkinHeadsToggle() {
+        skinHeads = skinHeadsCheck.isSelected();
+        prefs.putBoolean("skinheads", skinHeads);
+        headCache.clear();
+        playerList.refresh();
+        chatList.refresh();
+        mapView.refreshHeads();
     }
 
     private Image loadHead(String player, int source) {

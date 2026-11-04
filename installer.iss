@@ -104,9 +104,38 @@ begin
 end;
 
 // --------------------------------------------------------------------------
+// Privacy: the one thing the launcher sends on its own is player names, to fetch skin pictures.
+// Shown during installation with an option to turn it off (the launcher's Settings → Privacy has
+// the same switch). Stored where the launcher keeps its settings: Java Preferences, node "main".
+const
+  PrefsKey = 'Software\JavaSoft\Prefs\main';
+var
+  PrivacyPage: TInputOptionWizardPage;
+
 procedure InitializeWizard;
+var
+  Current: String;
 begin
   ApplyTheme;
+  PrivacyPage := CreateInputOptionPage(wpSelectDir,
+    'Privacy', 'What the launcher sends over the internet',
+    'The launcher shows each online player''s skin as a small picture. To get it, it sends the ' +
+    'player''s name to minotar.net (or mc-heads.net if that is down). Nothing else is sent anywhere ' +
+    'unless you ask for it, such as when you download a server JAR.' + #13#10#13#10 +
+    'You can change this later in Settings, Privacy.',
+    False, False);
+  PrivacyPage.Add('Show player skin heads (sends player names to minotar.net / mc-heads.net)');
+  // Keep an earlier choice when updating
+  PrivacyPage.Values[0] := not (RegQueryStringValue(HKCU, PrefsKey, 'skinheads', Current) and (Current = 'false'));
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    if PrivacyPage.Values[0] then
+      RegWriteStringValue(HKCU, PrefsKey, 'skinheads', 'true')
+    else
+      RegWriteStringValue(HKCU, PrefsKey, 'skinheads', 'false');
 end;
 
 procedure CurPageChanged(CurPageID: Integer);

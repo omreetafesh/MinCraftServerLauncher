@@ -36,6 +36,44 @@ The **Minecraft server** it runs does need Java (Java 21+ for current versions, 
 [adoptium.net](https://adoptium.net)). The launcher finds it automatically, or you can pick one in
 Settings → Performance → Java.
 
+See the [code signing policy](#code-signing-policy) and [privacy policy](#privacy-policy) below.
+
+---
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+Releases are built from this repository's source by GitHub Actions
+([`.github/workflows/release.yml`](.github/workflows/release.yml)) and signed only after a team
+member approves each signing request.
+
+**Team roles**
+
+| Role | Members |
+|---|---|
+| Committers and reviewers | [omreetafesh](https://github.com/omreetafesh) |
+| Approvers | [omreetafesh](https://github.com/omreetafesh) |
+
+Changes from anyone outside this list (for example pull requests) are reviewed by a committer
+before they are merged.
+
+### Privacy policy
+
+The launcher sends information to other systems only in these cases:
+
+- **Player skin heads** — to show each online player's skin as a small picture, the launcher sends
+  the player's name to [minotar.net](https://minotar.net) (or [mc-heads.net](https://mc-heads.net)
+  if minotar is unavailable). This can be turned off during installation or at any time in
+  **Settings → Performance → Privacy**; the launcher then shows each player's initial instead.
+- **When you ask for it** — the *Download server JAR* feature contacts Mojang
+  (piston-meta.mojang.com), PaperMC (fill.papermc.io) or FabricMC (meta.fabricmc.net) to list and
+  download server versions, and links you click open in your browser.
+
+Nothing else is collected or sent. The Minecraft server the launcher starts is separate software
+that connects to the internet as you configure it (see Mojang's
+[privacy policy](https://www.microsoft.com/privacy/privacystatement)).
+
 ---
 
 ## Building from Source

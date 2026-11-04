@@ -234,6 +234,14 @@ if errorlevel 1 (
     echo [OK] Wizard artwork ready.
 )
 
+:: The release workflow (.github/workflows/release.yml) stops here: it has the launcher's .exe
+:: signed first, so the copy inside the installer is signed too, then builds the installer itself.
+if defined SKIP_INSTALLER (
+    echo.
+    echo [INFO] SKIP_INSTALLER is set - stopping before the installer.
+    goto :build_done
+)
+
 :: -- Step 6: Create installer with Inno Setup (if installed) --
 set "ISCC="
 for %%I in (

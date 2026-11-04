@@ -89,7 +89,7 @@ final class MapView extends StackPane {
         final ArrayDeque<double[]> samples = new ArrayDeque<>();   // {seconds, x, z}, oldest first
         double interval = 0.5;                                      // typical seconds between samples
         double playT = Double.NaN;                                  // the moment of the path being shown
-        Node node; Animation ripple; Tooltip tip;
+        Node node; Animation ripple; Tooltip tip; ImageView head;
     }
     private boolean active;
     private final Map<String, Marker> players = new LinkedHashMap<>();
@@ -575,6 +575,11 @@ final class MapView extends StackPane {
         }
     }
 
+    /** Skin heads were turned on or off: fetch each marker's picture again (null = just the initial). */
+    void refreshHeads() {
+        for (var en : players.entrySet()) en.getValue().head.setImage(heads.apply(en.getKey()));
+    }
+
     /** Drops markers of players who left. */
     void retainPlayers(Collection<String> online) {
         players.entrySet().removeIf(en -> {
@@ -631,7 +636,14 @@ final class MapView extends StackPane {
         Rectangle clip = new Rectangle(26, 26);
         clip.setArcWidth(8); clip.setArcHeight(8);
         head.setClip(clip);
-        StackPane face = new StackPane(head);
+        m.head = head;
+        // The player's initial, under the head: shows while it loads, or when skin heads are off
+        String base = name.startsWith(".") ? name.substring(1) : name;
+        Label initial = new Label(base.isEmpty() ? "?" : base.substring(0, 1).toUpperCase());
+        initial.getStyleClass().add("map-marker-initial");
+        initial.setMinSize(26, 26);
+        initial.setAlignment(Pos.CENTER);
+        StackPane face = new StackPane(initial, head);
         face.getStyleClass().add("map-marker-head");
         face.setMaxSize(USE_PREF_SIZE, USE_PREF_SIZE);   // hug the head, don't stretch to the name's width
         StackPane pin = new StackPane(ring, face);
